@@ -1,0 +1,24 @@
+# bot_settings.yaml - Ajustes del BOT (no de los usuarios).
+# Este archivo NUNCA lo sobrescriben los correos entrantes: aqui viven
+# la lista blanca y las credenciales del buzon.
+
+imap:
+  host: imap.gmail.com
+  port: 993
+  user: wallabot01@gmail.com
+  app_password: "zbmj kkzj cezy shkg"
+
+# Cada cuantos minutos se comprueba el buzon en busca de configs nuevas.
+inbox_check_minutes: 5
+
+# Lista blanca: correo remitente -> user_id
+# El user_id decide el archivo en configs/<user_id>.yaml, el prefijo en la
+# base de datos y que config sustituye cada correo nuevo de ese remitente.
+# Un remitente que no este aqui se ignora (se marca leido y queda en el log).
+allowed_senders:
+  wallabot01@gmail.com: dario        # formulario enviado logueado como el bot
+  # tu.correo@gmail.com: dario       # RELLENA: tu correo personal
+  # correo.de.marc@gmail.com: marc   # RELLENA: el correo de Marc
+
+# Responder al remitente con una confirmacion cuando su config se aplica.
+reply_confirmation: true

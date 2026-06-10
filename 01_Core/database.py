@@ -1,0 +1,104 @@
+"""
+database.py
+-----------
+SQLite. Guarda CADA anuncio visto por alerta junto con su categoría y la
+decisión tomada (keep/reject). Así:
+  - Cada listing se clasifica UNA sola vez (no repetimos llamadas al LLM).
+  - Detectamos novedades (ids nuevos) y bajas (ids que desaparecen).
+"""
+
+import os
+import sqlite3
+from contextlib import contextmanager
+
+# En despliegues cloud (Railway), DATA_DIR apunta al volumen persistente.
+DB_PATH = os.path.join(
+    os.getenv("DATA_DIR") or os.path.dirname(os.path.abspath(__file__)),
+    "alerts.db")
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS seen_items (
+    alert_name TEXT NOT NULL,
+    item_id    TEXT NOT NULL,
+    title      TEXT,
+    price      REAL,
+    url        TEXT,
+    category   TEXT,
+    decision   TEXT,                       -- 'keep' | 'reject'
+    first_seen TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (alert_name, item_id)
+);
+"""
+
+# Columnas que deben existir (para migrar bases antiguas sin perder datos).
+_REQUIRED_COLS = {"category": "TEXT", "decision": "TEXT"}
+
+
+@contextmanager
+def _conn(db_path=DB_PATH):
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def init_db(db_path=None):
+    db_path = db_path or DB_PATH
+    with _conn(db_path) as c:
+        c.executescript(SCHEMA)
+        # Migración suave: añade columnas que falten si la tabla es antigua.
+        existing = {row["name"] for row in
+                    c.execute("PRAGMA table_info(seen_items)").fetchall()}
+        for col, coltype in _REQUIRED_COLS.items():
+            if col not in existing:
+                c.execute(f"ALTER TABLE seen_items ADD COLUMN {col} {coltype}")
+
+
+def get_known_ids(alert_name, db_path=None):
+    db_path = db_path or DB_PATH
+    """Todos los ids ya vistos (keep + reject): los que NO hay que reclasificar."""
+    with _conn(db_path) as c:
+        rows = c.execute(
+            "SELECT item_id FROM seen_items WHERE alert_name = ?",
+            (alert_name,)).fetchall()
+    return {r["item_id"] for r in rows}
+
+
+def get_kept_rows(alert_name, db_path=None):
+    db_path = db_path or DB_PATH
+    """Items que SÍ notificamos en su día -> {id: row}. Para detectar ventas."""
+    with _conn(db_path) as c:
+        rows = c.execute(
+            "SELECT * FROM seen_items WHERE alert_name = ? AND decision = 'keep'",
+            (alert_name,)).fetchall()
+    return {r["item_id"]: dict(r) for r in rows}
+
+
+def add_items(alert_name, decided_items, db_path=None):
+    db_path = db_path or DB_PATH
+    """
+    Inserta anuncios ya clasificados.
+    decided_items: lista de tuplas (item_dict, category, decision).
+    """
+    if not decided_items:
+        return
+    with _conn(db_path) as c:
+        c.executemany(
+            """INSERT OR IGNORE INTO seen_items
+               (alert_name, item_id, title, price, url, category, decision)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            [(alert_name, it["id"], it["title"], it["price"], it["url"],
+              cat, dec) for (it, cat, dec) in decided_items])
+
+
+def delete_items(alert_name, item_ids, db_path=None):
+    db_path = db_path or DB_PATH
+    if not item_ids:
+        return
+    with _conn(db_path) as c:
+        c.executemany(
+            "DELETE FROM seen_items WHERE alert_name = ? AND item_id = ?",
+            [(alert_name, iid) for iid in item_ids])

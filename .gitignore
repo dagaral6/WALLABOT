@@ -1,0 +1,13 @@
+# Datos en tiempo de ejecucion (no van al repo)
+__pycache__/
+*.pyc
+.env
+01_Core/alerts.db
+01_Core/*.db
+04_Logs/
+06_Backups/
+99_Obsoletos/
+*.tmp
+
+# Simulacion local de Railway (test_railway_paths.py)
+_railway_sim/
