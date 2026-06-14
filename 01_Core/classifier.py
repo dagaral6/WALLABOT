@@ -208,32 +208,18 @@ _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 _last_call = 0.0   # throttle global entre llamadas al LLM
 
 
-def _cloud_model():
-    return os.getenv("LLM_MODEL") or _DEFAULT_MODELS.get(LLM_PROVIDER, "")
+def _cloud_model(provider: str) -> str:
+    return os.getenv("LLM_MODEL") or _DEFAULT_MODELS.get(provider, "")
 
 
-def _api_key():
-    if LLM_PROVIDER == "groq":
+def _api_key(provider: str) -> str:
+    if provider == "groq":
         return os.getenv("GROQ_API_KEY", "")
-    if LLM_PROVIDER == "gemini":
+    if provider == "gemini":
         return os.getenv("GEMINI_API_KEY", "")
-    if LLM_PROVIDER == "openai":
+    if provider == "openai":
         return os.getenv("LLM_API_KEY", "")
     return ""
-
-
-def _throttle():
-    global _last_call
-    raw = os.getenv("LLM_MIN_INTERVAL")
-    try:
-        interval = float(raw) if raw is not None else \
-            _DEFAULT_INTERVALS.get(LLM_PROVIDER, 2.1)
-    except ValueError:
-        interval = _DEFAULT_INTERVALS.get(LLM_PROVIDER, 2.1)
-    wait = interval - (time.monotonic() - _last_call)
-    if wait > 0:
-        time.sleep(wait)
-    _last_call = time.monotonic()
 
 
 def _json_from_text(text):
@@ -247,42 +233,62 @@ def _json_from_text(text):
     return json.loads(text)
 
 
-def _post_with_retry(url, headers, payload, timeout, tries=3):
-    """POST con reintentos ante 429/5xx (limites por minuto de capas gratis)."""
+def _post_with_retry(provider, url, headers, payload, timeout, tries=2):
+    """POST con 2 reintentos cortos. Si agota los intentos con 429, abre el
+    circuit breaker del proveedor para que la cascada salte al siguiente."""
     r = None
     for attempt in range(tries):
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         if r.status_code == 429 or r.status_code >= 500:
             if attempt == tries - 1:
+                if r.status_code == 429:
+                    _trip_breaker(provider)
                 break
             try:
                 wait = float(r.headers.get("retry-after"))
             except (TypeError, ValueError):
                 wait = 5.0 * (attempt + 1)
             log.info("LLM %s: HTTP %s, reintento en %.0fs...",
-                     LLM_PROVIDER, r.status_code, wait)
-            time.sleep(min(wait, 60))
+                     provider, r.status_code, min(wait, 20))
+            time.sleep(min(wait, 20))
             continue
         break
     r.raise_for_status()
     return r
 
 
-def _ask(model, schema, messages, timeout=120):
-    """Pregunta al LLM activo y devuelve su respuesta como dict."""
-    if LLM_PROVIDER == "ollama":
+def _ask_provider(provider, model, schema, messages, timeout=120):
+    """Llama a un proveedor concreto. Lanza RequestException si falla."""
+    if _breaker_open(provider):
+        raise requests.RequestException(
+            "%s en cooldown (circuit breaker abierto)" % provider)
+    if provider == "ollama":
         return _ask_ollama(model, schema, messages, timeout)
-    key = _api_key()
+    key = _api_key(provider)
     if not key:
         raise requests.RequestException(
-            "falta la API key del proveedor '%s'" % LLM_PROVIDER)
-    _throttle()
-    if LLM_PROVIDER == "gemini":
-        return _ask_gemini(key, schema, messages, timeout)
-    if LLM_PROVIDER in ("groq", "openai"):
-        return _ask_openai_compat(key, schema, messages, timeout)
+            "falta la API key del proveedor '%s'" % provider)
+    _throttle(provider)
+    if provider == "gemini":
+        return _ask_gemini(provider, key, schema, messages, timeout)
+    if provider in ("groq", "openai"):
+        return _ask_openai_compat(provider, key, schema, messages, timeout)
+    raise requests.RequestException("proveedor desconocido: '%s'" % provider)
+
+
+def _ask(model, schema, messages, timeout=120):
+    """Intenta los proveedores de LLM_CASCADE en orden hasta que uno responde.
+    Si todos fallan, lanza RequestException para que el llamador use reglas."""
+    for provider in LLM_CASCADE:
+        if provider == "rules":
+            raise requests.RequestException("cascade agotada — usando reglas")
+        try:
+            return _ask_provider(provider, model, schema, messages, timeout)
+        except requests.RequestException as exc:
+            log.warning("LLM cascade: %s falló (%s), probando siguiente...",
+                        provider, exc)
     raise requests.RequestException(
-        "LLM_PROVIDER desconocido: '%s'" % LLM_PROVIDER)
+        "todos los proveedores de la cascada fallaron")
 
 
 def _ask_ollama(model, schema, messages, timeout):
@@ -298,30 +304,30 @@ def _ask_ollama(model, schema, messages, timeout):
     return json.loads(r.json()["message"]["content"])
 
 
-def _ask_openai_compat(key, schema, messages, timeout):
+def _ask_openai_compat(provider, key, schema, messages, timeout):
     """Groq y cualquier API compatible con OpenAI (LLM_BASE_URL)."""
-    base = (_GROQ_BASE if LLM_PROVIDER == "groq"
+    base = (_GROQ_BASE if provider == "groq"
             else os.getenv("LLM_BASE_URL", "").rstrip("/"))
     if not base:
         raise requests.RequestException("falta LLM_BASE_URL para 'openai'")
-    # Los prompts ya exigen JSON; reforzamos con las claves del schema.
     props = ", ".join((schema.get("properties") or {}).keys())
     msgs = list(messages) + [{
         "role": "system",
         "content": "Responde UNICAMENTE con un objeto JSON valido con las "
                    "claves: " + props + ". Sin texto adicional."}]
     payload = {
-        "model": _cloud_model(),
+        "model": _cloud_model(provider),
         "temperature": 0,
         "messages": msgs,
         "response_format": {"type": "json_object"},
     }
     headers = {"Authorization": "Bearer " + key}
-    r = _post_with_retry(base + "/chat/completions", headers, payload, timeout)
+    r = _post_with_retry(provider, base + "/chat/completions",
+                         headers, payload, timeout)
     return _json_from_text(r.json()["choices"][0]["message"]["content"])
 
 
-def _ask_gemini(key, schema, messages, timeout):
+def _ask_gemini(provider, key, schema, messages, timeout):
     """Gemini: system -> systemInstruction; assistant -> role 'model'."""
     system_parts, contents = [], []
     for m in messages:
@@ -343,36 +349,50 @@ def _ask_gemini(key, schema, messages, timeout):
     if system_parts:
         payload["systemInstruction"] = {
             "parts": [{"text": "\n\n".join(system_parts)}]}
-    url = "%s/models/%s:generateContent" % (_GEMINI_BASE, _cloud_model())
-    r = _post_with_retry(url, {"x-goog-api-key": key}, payload, timeout)
+    url = "%s/models/%s:generateContent" % (_GEMINI_BASE, _cloud_model(provider))
+    r = _post_with_retry(provider, url, {"x-goog-api-key": key}, payload, timeout)
     parts = r.json()["candidates"][0]["content"]["parts"]
     return _json_from_text("".join(p.get("text", "") for p in parts))
 
 
 def llm_available():
     """(ok, descripcion) del LLM activo, para el banner de arranque."""
-    if LLM_PROVIDER == "ollama":
-        return ollama_available(), "ollama (%s)" % OLLAMA_HOST
-    desc = "%s / %s" % (LLM_PROVIDER, _cloud_model() or "(sin LLM_MODEL)")
-    key = _api_key()
+    parts = []
+    for p in LLM_CASCADE:
+        if p == "rules":
+            parts.append("rules")
+            continue
+        model = _cloud_model(p) or "?"
+        if _breaker_open(p):
+            parts.append("%s[cooldown]" % p)
+        else:
+            parts.append("%s/%s" % (p, model))
+    cascade_str = " → ".join(parts)
+    # Comprobación rápida del primer proveedor activo (no rules)
+    first = next((p for p in LLM_CASCADE if p != "rules" and not _breaker_open(p)), None)
+    if first is None:
+        return len([p for p in LLM_CASCADE if p == "rules"]) > 0, cascade_str
+    if first == "ollama":
+        return ollama_available(), cascade_str
+    key = _api_key(first)
     if not key:
-        return False, desc + " - falta la API key"
+        return False, cascade_str + " (falta API key)"
     try:
-        if LLM_PROVIDER == "groq":
+        if first == "groq":
             r = requests.get(_GROQ_BASE + "/models", timeout=8,
                              headers={"Authorization": "Bearer " + key})
-        elif LLM_PROVIDER == "gemini":
+        elif first == "gemini":
             r = requests.get(_GEMINI_BASE + "/models", timeout=8,
                              headers={"x-goog-api-key": key})
         else:
             base = os.getenv("LLM_BASE_URL", "").rstrip("/")
             if not base:
-                return False, desc + " - falta LLM_BASE_URL"
+                return False, cascade_str + " (falta LLM_BASE_URL)"
             r = requests.get(base + "/models", timeout=8,
                              headers={"Authorization": "Bearer " + key})
-        return r.status_code == 200, desc
+        return r.status_code == 200, cascade_str
     except requests.RequestException as e:
-        return False, "%s - %s" % (desc, e)
+        return False, "%s (%s)" % (cascade_str, e)
 
 
 # ---------------------------------------------------------------------------

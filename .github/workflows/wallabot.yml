@@ -25,7 +25,11 @@ jobs:
     timeout-minutes: 45    # holgado para la primera pasada (clasifica todo)
     env:
       TZ: Europe/Madrid
-      LLM_PROVIDER: groq
+      # Cascada de LLM: Gemini primero, Groq de respaldo, reglas si todo falla.
+      # Para cambiar el orden: LLM_CASCADE: "groq,gemini,rules"
+      # Para solo reglas:      LLM_CASCADE: "rules"
+      LLM_CASCADE: "gemini,groq,rules"
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
       ALLOWED_SENDERS: ${{ secrets.ALLOWED_SENDERS }}
