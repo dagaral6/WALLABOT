@@ -9,7 +9,7 @@ email:
   # App Password de 16 caracteres (NO tu contraseña normal):
   # https://myaccount.google.com/apppasswords
   app_password: "zbmj kkzj cezy shkg"
-  recipient: "wallabot01@gmail.com"
+  recipient: "dariogarciaalvarez01@gmail.com"
 
 # Cada cuántos minutos comprobar Wallapop (recomendado: 5-15)
 check_interval_minutes: 30
