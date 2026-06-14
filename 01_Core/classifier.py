@@ -176,36 +176,86 @@ def title_matches(target, title):
 
 
 # ---------------------------------------------------------------------------
-#  LLM helper (multi-proveedor: ollama local | groq | gemini | openai-compat)
+#  LLM helper — cascada con circuit breaker por proveedor
 # ---------------------------------------------------------------------------
-# Seleccion por variables de entorno (pensado para Railway; en local, sin
-# variables, todo sigue contra Ollama como siempre):
-#   LLM_PROVIDER     = ollama (defecto) | groq | gemini | openai
-#   LLM_MODEL        = modelo del proveedor cloud. Si no se define, se usa uno
-#                      por defecto. Con proveedor cloud se IGNORA el
-#                      'classifier.model' de los configs (es un modelo Ollama).
-#   GROQ_API_KEY     = clave de console.groq.com      (provider groq)
-#   GEMINI_API_KEY   = clave de aistudio.google.com   (provider gemini)
+# Variables de entorno:
+#   GEMINI_API_KEY   = clave de aistudio.google.com   (1er proveedor)
+#   GROQ_API_KEY     = clave de console.groq.com      (2o proveedor)
 #   LLM_API_KEY +
-#   LLM_BASE_URL     = cualquier API compatible OpenAI (provider openai;
-#                      p.ej. https://api.x.ai/v1 para el Grok de xAI, de pago)
-#   LLM_MIN_INTERVAL = segundos minimos entre llamadas. Por defecto 0 en
-#                      ollama, 2.1 en groq/openai y 4.1 en gemini, para
-#                      respetar los limites por minuto de las capas gratis.
+#   LLM_BASE_URL     = API compatible OpenAI adicional (opcional)
+#   LLM_OLLAMA_HOST  = host de Ollama (por defecto localhost)
+#
+# Orden de cascada (configurable con LLM_CASCADE):
+#   Por defecto: gemini,groq,rules
+#   Ollama local: LLM_CASCADE=ollama,gemini,groq,rules
+#   Solo reglas:  LLM_CASCADE=rules
+#
+# LLM_COOLDOWN = segundos de pausa por proveedor tras 429 sostenido (def. 600)
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama").strip().lower()
-
-_DEFAULT_MODELS = {
-    "groq": "llama-3.1-8b-instant",
-    "gemini": "gemini-2.5-flash-lite",
-    "openai": "",
-}
-_DEFAULT_INTERVALS = {"ollama": 0.0, "groq": 2.1, "openai": 2.1, "gemini": 4.1}
-
-_GROQ_BASE = "https://api.groq.com/openai/v1"
+_GROQ_BASE   = "https://api.groq.com/openai/v1"
 _GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
-_last_call = 0.0   # throttle global entre llamadas al LLM
+_DEFAULT_MODELS = {
+    "groq":   "llama-3.1-8b-instant",
+    "gemini": "gemini-2.5-flash-lite",
+    "openai": "",
+    "ollama": "",               # se usa el model del config yaml
+}
+
+# Throttle: segundos mínimos entre llamadas a cada proveedor
+_DEFAULT_INTERVALS = {
+    "ollama": 0.0, "groq": 2.1, "openai": 2.1, "gemini": 4.1,
+}
+
+# --- cascade ---
+_raw_cascade = os.getenv("LLM_CASCADE", "gemini,groq,rules")
+LLM_CASCADE   = [p.strip().lower() for p in _raw_cascade.split(",") if p.strip()]
+# Para compatibilidad: si se define LLM_PROVIDER a un valor concreto y
+# LLM_CASCADE no está en el entorno, lo respetamos.
+if "LLM_PROVIDER" in os.environ and "LLM_CASCADE" not in os.environ:
+    _lp = os.environ["LLM_PROVIDER"].strip().lower()
+    if _lp != "rules":
+        LLM_CASCADE = [_lp, "rules"]
+    else:
+        LLM_CASCADE = ["rules"]
+
+# Para que main.py pueda hacer "LLM activo: gemini / …"
+LLM_PROVIDER = LLM_CASCADE[0] if LLM_CASCADE else "rules"
+
+# --- circuit breakers (un reloj por proveedor, en memoria) ---
+try:
+    _LLM_COOLDOWN = float(os.getenv("LLM_COOLDOWN", "600"))
+except ValueError:
+    _LLM_COOLDOWN = 600.0
+
+_breaker_until: dict[str, float] = {}   # proveedor -> monotonic timestamp
+
+def _breaker_open(provider: str) -> bool:
+    return time.monotonic() < _breaker_until.get(provider, 0.0)
+
+def _trip_breaker(provider: str) -> None:
+    _breaker_until[provider] = time.monotonic() + _LLM_COOLDOWN
+    remaining = [p for p in LLM_CASCADE if p != "rules" and not _breaker_open(p)]
+    next_p = remaining[0] if remaining else "rules"
+    log.warning(
+        "LLM cascade: %s en cooldown (%.0f min). Siguiente: %s.",
+        provider, _LLM_COOLDOWN / 60.0, next_p,
+    )
+
+# --- throttle por proveedor ---
+_last_call: dict[str, float] = {}
+
+def _throttle(provider: str) -> None:
+    raw = os.getenv("LLM_MIN_INTERVAL")
+    try:
+        interval = float(raw) if raw is not None else _DEFAULT_INTERVALS.get(provider, 2.1)
+    except ValueError:
+        interval = _DEFAULT_INTERVALS.get(provider, 2.1)
+    since = time.monotonic() - _last_call.get(provider, 0.0)
+    wait = interval - since
+    if wait > 0:
+        time.sleep(wait)
+    _last_call[provider] = time.monotonic()
 
 
 def _cloud_model(provider: str) -> str:
