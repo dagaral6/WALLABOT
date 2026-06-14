@@ -192,7 +192,11 @@ novedades (decisión de Darío, jun 2026).
 
 ---
 
-## Despliegue 24/7 (Railway)
+## Despliegue 24/7 (Railway) — DESCARTADO
+
+> Railway bloquea SMTP saliente salvo en plan Pro (20 $/mes): inviable
+> gratis. **Vía elegida: GitHub Actions** (sección siguiente). El modo
+> `DATA_DIR` se conserva en el código por si se retoma una PaaS.
 
 Guía completa: `05_Docs/DEPLOY_RAILWAY.md`. En la raíz del repo:
 `railway.json` (startCommand `python 01_Core/main.py`, restart ALWAYS),
@@ -222,11 +226,39 @@ password).
 
 ---
 
+## Despliegue elegido: GitHub Actions (cron) — jun 2026
+
+Guía completa: `05_Docs/DEPLOY_GITHUB_ACTIONS.md`. Workflow:
+`.github/workflows/wallabot.yml`.
+
+El bot corre como tarea programada **cada hora (minuto 17)** en una
+máquina efímera de GitHub: `config_inbox.py` (buzón) → `main.py --once`
+(ciclo completo) → `git add -A 01_Core` + commit + push del **estado**
+(`alerts.db` + `configs/`), que es como persiste entre ejecuciones. Sin
+cambios de backend: reutiliza `--once`, el modo standalone del inbox y
+los overrides por entorno (`GMAIL_APP_PASSWORD`, `GROQ_API_KEY`,
+`ALLOWED_SENDERS` como GitHub Secrets; `LLM_PROVIDER=groq` fijado en el
+workflow). `.gitignore` dejó de ignorar `alerts.db` a propósito.
+
+Claves operativas: presupuesto 2.000 min/mes en repo privado (~1.450
+consumidos a cadencia horaria; si se agota, GitHub pausa Actions hasta el
+mes siguiente); latencia real de avisos 30-90 min (cron de GitHub se
+retrasa en horas punta); pasada manual con "Run workflow" (Actions);
+NO ejecutar `main.py` en local con el workflow activo (BDs divergen);
+`workflow_dispatch` disponible; concurrencia serializada (grupo
+`wallabot`). Backups de configs en CI se pierden a propósito: el
+historial git ES el backup.
+
+---
+
 ## Herramienta HTML de configuración
 
 ### Archivo final
 
-**`02_Herramienta/wallapop_config_v15.html`** — 440 KB, autocontenido
+**`02_Herramienta/wallapop_config_v15.html`** — regenerado (jun 2026) tras
+perderse el original: 164 KB, compilado con esbuild + Tailwind por CDN
+(necesita internet para estilos y para el buscador de municipios; el
+original de 440 KB era 100% autocontenido vía Parcel)
 
 ### Secciones del formulario
 
@@ -429,3 +461,10 @@ delivery:
   aplican throttle por proveedor y reintentos ante 429 para encajar en las
   capas gratuitas. Groq usa modo `json_object` + instrucción con las claves
   del schema; Gemini usa `responseSchema` nativo con los mismos schemas.
+
+- **Estado del bot versionado en git (patrón commit-back)**: para GitHub
+  Actions, `alerts.db` y `configs/` viven en el propio repo y el workflow
+  los commitea al final de cada pasada. Elegido frente a caché/artifacts
+  de Actions (expiran, no fiables como estado). Coste asumido: ~720
+  commits/mes y repo que crece; beneficio: cero infraestructura externa y
+  el historial git actúa de backup de los configs.

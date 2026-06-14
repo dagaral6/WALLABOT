@@ -1,0 +1,60 @@
+name: wallabot
+
+# Bot de alertas de Wallapop como tarea programada:
+# cada pasada nace, revisa el buzon, scrapea, notifica,
+# commitea su estado (BD + configs) y muere.
+
+on:
+  schedule:
+    # Cada hora, en el minuto 17 (los minutos "raros" sufren
+    # menos retraso que el minuto 0 en GitHub Actions).
+    - cron: "17 * * * *"
+  workflow_dispatch: {}    # boton "Run workflow" para forzar una pasada
+
+# Nunca dos pasadas a la vez (chocarian al commitear el estado).
+concurrency:
+  group: wallabot
+  cancel-in-progress: false
+
+permissions:
+  contents: write          # necesario para hacer push del estado
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45    # holgado para la primera pasada (clasifica todo)
+    env:
+      TZ: Europe/Madrid
+      LLM_PROVIDER: groq
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+      ALLOWED_SENDERS: ${{ secrets.ALLOWED_SENDERS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      # --once ya lo hace TODO: revisa el buzon (aplica configs nuevos y
+      # responde la confirmacion), scrapea, clasifica con el LLM y avisa.
+      - name: Pasada completa (buzon + ciclo de alertas)
+        run: python 01_Core/main.py --once
+
+      - name: Persistir estado (BD + configs)
+        if: always()       # guarda lo procesado aunque el ciclo falle a medias
+        run: |
+          git config user.name "wallabot (actions)"
+          git config user.email "wallabot01@gmail.com"
+          git add -A 01_Core
+          if git diff --cached --quiet; then
+            echo "Sin cambios de estado."
+          else
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git commit -m "estado wallabot $(date +'%Y-%m-%d %H:%M') [skip ci]"
+            git push
+          fi

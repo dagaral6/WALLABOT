@@ -2,12 +2,14 @@
 __pycache__/
 *.pyc
 .env
-01_Core/alerts.db
-01_Core/*.db
 04_Logs/
 06_Backups/
 99_Obsoletos/
 *.tmp
+
+# NOTA: 01_Core/alerts.db y 01_Core/configs/ SI van al repo a proposito:
+# son el estado del bot, y el workflow de GitHub Actions los commitea
+# en cada pasada para persistirlos entre ejecuciones.
 
 # Simulacion local de Railway (test_railway_paths.py)
 _railway_sim/

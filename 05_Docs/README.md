@@ -110,8 +110,11 @@ python3 main.py --once
 python3 main.py --seed
 ```
 
-> **24/7 sin PC:** el proyecto está adaptado para correr en Railway (nube).
-> Guía paso a paso en `05_Docs/DEPLOY_RAILWAY.md`. En local nada cambia.
+> **24/7 sin PC (vía elegida):** el bot corre gratis como tarea horaria en
+> **GitHub Actions** — guía en `05_Docs/DEPLOY_GITHUB_ACTIONS.md`. La vía
+> Railway quedó descartada (SMTP solo en plan de pago); su doc se conserva
+> como referencia. En local nada cambia, pero NO ejecutes `main.py` con el
+> workflow activo (verías avisos duplicados).
 
 ## Configs por correo (automático)
 El botón "Enviar a wallabot" del formulario abre un borrador de Gmail a

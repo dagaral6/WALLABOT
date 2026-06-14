@@ -1,4 +1,13 @@
-# Despliegue 24/7 en Railway
+# Despliegue 24/7 en Railway — DESCARTADO (jun 2026)
+
+> **AVISO**: esta via se descarto. Railway bloquea el SMTP saliente en los
+> planes Free, Trial y Hobby; solo el plan **Pro (20 $/mes)** lo permite
+> (confirmado en docs.railway.com/networking/outbound-networking). Este
+> documento decia antes que el plan Hobby bastaba: era INCORRECTO. El bot
+> no puede enviar correos por Gmail desde Railway sin pagar Pro.
+> **El despliegue elegido es GitHub Actions**: ver `DEPLOY_GITHUB_ACTIONS.md`.
+> Se conserva este documento porque el codigo sigue soportando el modo
+> DATA_DIR por si algun dia se retoma (Railway Pro u otra PaaS con volumen).
 
 Guia para tener el bot corriendo en la nube sin depender del PC.
 El codigo ya esta adaptado: en local funciona igual que siempre; el "modo
@@ -93,9 +102,8 @@ El `.gitignore` ya excluye BD, logs, backups y obsoletos.
 
 ### 2. Cuenta y proyecto en Railway
 1. https://railway.app -> "Login with GitHub".
-2. Plan **Hobby** (5 $/mes, incluye 5 $ de uso; este bot consume mucho
-   menos). Importante: el plan trial/gratuito BLOQUEA el SMTP saliente,
-   el Hobby no.
+2. Plan **Pro** (20 $/mes) — OBLIGATORIO para SMTP: Railway bloquea los
+   puertos SMTP salientes (25/465/587) en Free, Trial y Hobby.
 3. New Project -> "Deploy from GitHub repo" -> selecciona el repo.
 4. En Settings del servicio, region **EU (Amsterdam)** si te lo ofrece
    (mas cerca de Wallapop).
@@ -143,7 +151,8 @@ tanto.
   remoto si algun dia existe.
 - **IP de datacenter**: Wallapop podria limitar peticiones desde IPs cloud.
   Si aparecen 403/429 en los logs, habra que anyadir cabeceras o proxy.
-- **SMTP saliente**: requiere plan Hobby (el trial lo bloquea).
+- **SMTP saliente**: requiere plan Pro (20 $/mes); bloqueado en Free,
+  Trial y Hobby. Motivo principal del descarte de Railway.
 - **Coste real estimado**: 0,5-2 $/mes de uso (proceso ligero, sin LLM).
 
 ## Volver a local
