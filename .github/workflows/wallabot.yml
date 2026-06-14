@@ -8,7 +8,7 @@ on:
   schedule:
     # Cada hora, en el minuto 17 (los minutos "raros" sufren
     # menos retraso que el minuto 0 en GitHub Actions).
-    - cron: "17 * * * *"
+    - cron: "17 */2 * * *"
   workflow_dispatch: {}    # boton "Run workflow" para forzar una pasada
 
 # Nunca dos pasadas a la vez (chocarian al commitear el estado).
