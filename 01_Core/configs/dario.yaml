@@ -1,92 +1,30 @@
-# ============================================================
-#  CONFIGURACIÓN DE WALLAPOP ALERTS — JUEGOS DE MESA
-# ============================================================
+# Config de 'dario' aplicada automaticamente desde el buzon.
+# Remitente: dariogarciaalvarez01@gmail.com | Nombre en el formulario: Darío
+# Aplicada: 2026-06-16 16:54:03
 
 email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
   sender: "wallabot01@gmail.com"
-  # App Password de 16 caracteres (NO tu contraseña normal):
-  # https://myaccount.google.com/apppasswords
   app_password: "zbmj kkzj cezy shkg"
-  recipient: "dariogarciaalvarez01@gmail.com" # aquí puedes poner tu correo personal, o el mismo que el sender.
+  recipient: "dariogarciaalvarez01@gmail.com"
 
-# Cada cuántos minutos comprobar Wallapop (recomendado: 5-15)
 check_interval_minutes: 30
 
-location: #mi casa
-  latitude: 39.4685
-  longitude: -0.3359
-  radius_km: 50          # radio para entregas EN PERSONA (0-50). Lo ignora el envío.
+location:
+  latitude: 39.4699
+  longitude: -0.3763
+  radius_km: 25
 
-# ------------------------------------------------------------
-#  ENTREGA  (cómo quieres recibir los anuncios)
-#   in_person -> en mano, dentro del radio de 'location.radius_km'
-#   shipping  -> con envío (la distancia se ignora: llega a cualquier sitio)
-#  Si ambas van en true (o ambas en false) = sin filtro: vale cualquier anuncio.
-# ------------------------------------------------------------
 delivery:
   in_person: true
   shipping: true
 
-# ------------------------------------------------------------
-#  FILTRO INTELIGENTE (IA)
-#   use_ai: true  -> usa la cascada de LLM (definida en bot_settings.yaml)
-#                    para los casos dudosos. Más preciso, sobre todo con lotes.
-#   use_ai: false -> solo reglas. Más rápido, pero un anuncio cuyo TÍTULO no
-#                    contenga tus palabras nunca se pillará como lote.
-# ------------------------------------------------------------
 use_ai: true
 
-# ============================================================
-#  ALERTAS  (una por juego o grupo de palabras)
-# ============================================================
-#  Campos por alerta:
-#   name          (obligatorio) etiqueta para el email
-#   keywords      (obligatorio) lo que se busca en Wallapop
-#   max_price     (opcional) precio máximo; si lo supera, NO te llega...
-#                 ...EXCEPTO si es un lote (ver bypass abajo)
-#   min_price     (opcional)
-#   want          (opcional) qué categorías quieres recibir.
-#                 Por defecto ["base", "lote"].
-#                 Para buscar una expansión: ["expansion", "lote"]
-#   exclude       (opcional) bloqueo manual por título SOLO para variantes que
-#                 nunca quieres (p.ej. "junior"). NO sirve para expansiones ni
-#                 componentes: de eso se encarga el clasificador por NLP.
-# ============================================================
 alerts:
-# ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#  Parámetros de búsqueda
-#  Puedes crear varias alertas, cada una con sus propias palabras clave y filtros.
-#     - name: etiqueta para el email (obligatorio)
-#     - keywords: palabras clave para buscar en Wallapop (obligatorio)
-#     - max_price: precio máximo (opcional)
-#     - want: qué categorías quieres recibir (opcional, por defecto ["base", "lote"]; puede incluir "expansion" y "componentes")
-#     - exclude: palabras clave para descartar (opcional, p.ej. "junior", "mini", "cartas", "duelo", etc.)
-#        - Como idea, excluir directamente "tags", "similar", etc. para evitar versiones baratos que no interesan.
-# ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  - name: "Inis: Expansiones"
-    keywords: "inis"
-    want: ["base", "lote", "expansion"]   # quiero tanto el juego base como las expansiones
+  - name: "Risk"
+    keywords: "risk"
+    min_price: 100
 
-  - name: "Catan (base, hasta 25€)"
-    keywords: "catan"
-    max_price: 25
-    exclude: ["junior", "cartas", "duelo"]   # ej: descartar la edición Junior
-  
-  - name: "Root (base o expansión, hasta 40€)"
-    keywords: "root"
-    max_price: 40
-
-  # Ejemplo: aquí SÍ quieres una expansión concreta
-  - name: "Carcassonne Expansión: Posadas y Catedrales"
-    keywords: "carcassonne posadas catedrales"
-    max_price: 20
-    want: ["expansion", "lote"]
-
-# ------------------------------------------------------------
-#  BYPASS DE PRECIO PARA LOTES
-#  Si un anuncio se clasifica como "lote" (varios juegos juntos),
-#  te llega SIEMPRE aunque supere el max_price del juego.
-# ------------------------------------------------------------
 lote_bypass_price: true
