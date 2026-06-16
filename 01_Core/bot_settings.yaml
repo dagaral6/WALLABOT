@@ -69,11 +69,11 @@ llm:
   # o pega aqui la clave (el repo es privado). La env-var del mismo proveedor
   # SIEMPRE manda sobre lo que pongas aqui.
   keys:
-    groq:         ""    # o variable GROQ_API_KEY
-    cerebras:     ""    # o variable CEREBRAS_API_KEY
-    gemini:       ""    # o variable GEMINI_API_KEY
-    openrouter:   ""    # o variable OPENROUTER_API_KEY
-    githubmodels: ""    # o variable GH_MODELS_TOKEN
+    groq:         "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"    # o variable GROQ_API_KEY
+    cerebras:     "csk-4v2pj5xnn56x3jdyyyyffk2evrd5jrxtvh5dx6xndk49f9nw"    # o variable CEREBRAS_API_KEY
+    gemini:       "AQ.Ab8RN6JW2EG4V4O5btMmHWknkQWEKRlFI_9Jq4rabwFznT0CFw"    # o variable GEMINI_API_KEY
+    openrouter:   "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"    # o variable OPENROUTER_API_KEY
+    githubmodels: "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"    # o variable GH_MODELS_TOKEN
 
   # Pausa (segundos) que aplica un proveedor tras un 429 sostenido antes de
   # volver a intentarse (circuit breaker). Override: variable LLM_COOLDOWN.

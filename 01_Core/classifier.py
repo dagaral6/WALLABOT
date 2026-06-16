@@ -407,9 +407,22 @@ def _ask_provider(provider, model, schema, messages, timeout=120):
     raise requests.RequestException("proveedor desconocido: '%s'" % provider)
 
 
+_cascade_dead_until: float = 0.0   # reservado para uso futuro
+
+def _all_breakers_open() -> bool:
+    """True si todos los proveedores activos (no rules) están en cooldown."""
+    active = [p for p in LLM_CASCADE if p != "rules"]
+    return bool(active) and all(_breaker_open(p) for p in active)
+
+
 def _ask(model, schema, messages, timeout=120):
     """Intenta los proveedores de LLM_CASCADE en orden hasta que uno responde.
-    Si todos fallan, lanza RequestException para que el llamador use reglas."""
+    Si todos fallan, lanza RequestException para que el llamador use reglas.
+    Si toda la cascada está en cooldown, falla inmediatamente sin reintentar."""
+    if _all_breakers_open():
+        # Toda la cascada en cooldown: no tiene sentido probar nada,
+        # caemos directamente a reglas sin generar ruido en el log.
+        raise requests.RequestException("toda la cascada en cooldown — usando reglas")
     for provider in LLM_CASCADE:
         if provider == "rules":
             raise requests.RequestException("cascade agotada — usando reglas")
