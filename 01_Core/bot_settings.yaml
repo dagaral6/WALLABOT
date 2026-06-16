@@ -28,6 +28,8 @@ sleep_hours:
 # base de datos y que config sustituye cada correo nuevo de ese remitente.
 # Un remitente que no este aqui se ignora (se marca leido y queda en el log).
 allowed_senders:
+  marcferrando01@gmail.com: marc        # alta: 2026-06-16
+  dariogarciaalvarez01@gmail.com: dario        # alta: 2026-06-16
   wallabot01@gmail.com: dario        # formulario enviado logueado como el bot
   # tu.correo@gmail.com: dario       # RELLENA: tu correo personal
   # correo.de.marc@gmail.com: marc   # RELLENA: el correo de Marc
