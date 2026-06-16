@@ -365,23 +365,24 @@ def _json_from_text(text):
 
 
 def _post_with_retry(provider, url, headers, payload, timeout, tries=2):
-    """POST con 2 reintentos cortos. Si agota los intentos con 429, abre el
-    circuit breaker del proveedor para que la cascada salte al siguiente."""
+    """Un POST por proveedor con politica de "fallo rapido":
+    - 429 (rate limit): NO se reintenta. Abre el circuit breaker del proveedor
+      (cooldown) y lanza, para que la cascada salte al siguiente y no se vuelva
+      a llamar durante el cooldown.
+    - 5xx (error transitorio del servidor): un reintento corto; si persiste,
+      lanza para saltar al siguiente (sin abrir cooldown).
+    - resto de 4xx / errores de red: lanza directamente (salta al siguiente)."""
     r = None
     for attempt in range(tries):
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
-        if r.status_code == 429 or r.status_code >= 500:
-            if attempt == tries - 1:
-                if r.status_code == 429:
-                    _trip_breaker(provider)
-                break
-            try:
-                wait = float(r.headers.get("retry-after"))
-            except (TypeError, ValueError):
-                wait = 5.0 * (attempt + 1)
+        if r.status_code == 429:
+            _trip_breaker(provider)          # rate limit: a cooldown y siguiente
+            break
+        if r.status_code >= 500 and attempt < tries - 1:
+            wait = 3.0 * (attempt + 1)
             log.info("LLM %s: HTTP %s, reintento en %.0fs...",
-                     provider, r.status_code, min(wait, 20))
-            time.sleep(min(wait, 20))
+                     provider, r.status_code, wait)
+            time.sleep(wait)
             continue
         break
     r.raise_for_status()
