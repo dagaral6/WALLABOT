@@ -25,32 +25,57 @@ jobs:
     timeout-minutes: 45    # holgado para la primera pasada (clasifica todo)
     env:
       TZ: Europe/Madrid
-      # Cascada de LLM: Gemini primero, Groq de respaldo, reglas si todo falla.
-      # Para cambiar el orden: LLM_CASCADE: "groq,gemini,rules"
-      # Para solo reglas:      LLM_CASCADE: "rules"
-      LLM_CASCADE: "gemini,groq,rules"
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # El ORDEN de la cascada de LLM vive ahora en 01_Core/bot_settings.yaml
+      # (seccion 'llm'). Si quieres forzarlo SOLO en CI, descomenta LLM_CASCADE
+      # (la variable de entorno tiene prioridad sobre el YAML):
+      # LLM_CASCADE: "groq,cerebras,gemini,openrouter,githubmodels,rules"
+      #
+      # Claves de los proveedores (capa gratuita). Crea cada Secret en
+      # Settings > Secrets and variables > Actions. Las que no existan quedan
+      # vacias y su proveedor simplemente se salta en la cascada.
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GH_MODELS_TOKEN: ${{ secrets.GH_MODELS_TOKEN }}   # PAT models:read (no puede llamarse GITHUB_*)
       GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
       ALLOWED_SENDERS: ${{ secrets.ALLOWED_SENDERS }}
     steps:
       - uses: actions/checkout@v4
 
+      # Ventana de sueño: de 01:00 a 07:00 (hora de Madrid) el bot no hace nada.
+      # Saltamos los pasos caros (setup, pip, scraping) para no gastar minutos
+      # de Actions. DEBE coincidir con sleep_hours de 01_Core/bot_settings.yaml.
+      # Las ejecuciones manuales (workflow_dispatch) NO duermen.
+      - name: "¿Horario de sueño? (01-07 Madrid)"
+        id: gate
+        run: |
+          H=$(TZ=Europe/Madrid date +%H)
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ "$H" -ge 1 ] && [ "$H" -lt 7 ]; then
+            echo "Durmiendo (hora de Madrid: ${H}h). No se hace nada en esta pasada."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/setup-python@v5
+        if: steps.gate.outputs.run == 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Instalar dependencias
+        if: steps.gate.outputs.run == 'true'
         run: pip install -r requirements.txt
 
       # --once ya lo hace TODO: revisa el buzon (aplica configs nuevos y
       # responde la confirmacion), scrapea, clasifica con el LLM y avisa.
       - name: Pasada completa (buzon + ciclo de alertas)
+        if: steps.gate.outputs.run == 'true'
         run: python 01_Core/main.py --once
 
       - name: Persistir estado (BD + configs)
-        if: always()       # guarda lo procesado aunque el ciclo falle a medias
+        if: ${{ always() && steps.gate.outputs.run == 'true' }}   # guarda aunque el ciclo falle, salvo si dormimos
         run: |
           git config user.name "wallabot (actions)"
           git config user.email "wallabot01@gmail.com"

@@ -6,6 +6,8 @@ con filtrado inteligente de base / expansión / componentes / lotes.
 ## Qué hace
 - Vigila varias búsquedas, cada una con su **precio máximo**.
 - Te avisa **solo de novedades** y de bajas (vendido/retirado).
+- Te avisa de **bajadas de precio** de anuncios que ya te habían llegado, y
+  **recupera** los que habías descartado por caros si bajan a tu presupuesto.
 - Por defecto solo te llega el **juego base** (descarta expansiones y
   componentes sueltos como insertos, fundas, fichas...).
 - Los **lotes** (varios juegos juntos) te llegan **aunque superen el precio**.
@@ -21,7 +23,10 @@ con filtrado inteligente de base / expansión / componentes / lotes.
   (antes solo obtenía la primera página, que podía tener solo 3-4 anuncios).
 - **Multi-usuario**: cada persona configura sus alertas en el formulario HTML
   y su config llega y se aplica sola por correo (un config y un correo de
-  avisos por usuario).
+  avisos por usuario). El formulario tiene también una pestaña **"Eliminar
+  alertas"** que envía una orden de borrado al bot.
+- **Descansa de madrugada**: por defecto no hace nada de **01:00 a 07:00**
+  (hora de Madrid); configurable en `bot_settings.yaml`.
 
 ## Instalación (Windows / PowerShell)
 ```powershell
@@ -36,17 +41,22 @@ pip install -r requirements.txt
    ollama pull qwen2.5:3b
    ```
    Si prefieres más precisión a cambio de algo más de RAM: `ollama pull llama3.1`
-   (cámbialo en tu config → `classifier.model`).
+   (cámbialo en `bot_settings.yaml` → `llm.models.ollama`).
 3. Ollama arranca automáticamente con Windows y corre en segundo plano.
    Si no está activo, el programa sigue funcionando con reglas de respaldo
    (algo menos preciso, pero sin perder anuncios cuyo título coincide).
 
-> Si prefieres no usar LLM: pon `classifier.use_llm: false` en el config.
+> Si prefieres no usar LLM: pon `use_ai: false` en el config.
 
-> **Sin Ollama** (p.ej. corriendo en la nube): el clasificador puede usar
-> **Groq o Gemini gratis** con variables de entorno (`LLM_PROVIDER=groq` +
-> `GROQ_API_KEY`). Misma calidad o mejor que el modelo local. Detalles en
-> `05_Docs/DEPLOY_RAILWAY.md`, sección "LLM en la nube".
+> **Sin Ollama** (p.ej. corriendo en la nube): el clasificador usa una
+> **cascada de LLMs gratuitos**, configurable en `bot_settings.yaml` (sección
+> `llm`) o por `LLM_CASCADE`. Por defecto: `groq,cerebras,gemini,openrouter,`
+> `githubmodels,rules` (gana el primero que responde; `rules` es el último
+> recurso, sin IA). Solo necesitas la clave de los proveedores que uses
+> (`GROQ_API_KEY`, `CEREBRAS_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
+> `GH_MODELS_TOKEN`). Un 429 sostenido manda al proveedor a cooldown y se salta
+> solo. En GitHub Actions ya va configurado. Detalles en
+> `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
 
 ## Configuración
 Hay **un config por usuario** en `01_Core/configs/<user_id>.yaml` (el tuyo es
@@ -108,6 +118,9 @@ python3 main.py --once
 # Opcional: registrar lo existente SIN enviar emails. Por defecto NO se usa:
 # el primer email de una alerta nueva trae todo lo vigente, y luego solo novedades
 python3 main.py --seed
+
+# Forzar una pasada aunque sea horario de sueño (1-7h)
+python3 main.py --once --force
 ```
 
 > **24/7 sin PC (vía elegida):** el bot corre gratis como tarea horaria en
@@ -122,8 +135,9 @@ El botón "Enviar a wallabot" del formulario abre un borrador de Gmail a
 (`bot_settings.yaml` → `inbox_check_minutes`):
 
 - Solo acepta remitentes de la **lista blanca**: `bot_settings.yaml` →
-  `allowed_senders` (mapa `correo → user_id`). Añade ahí tu correo personal
-  y el de cada amigo ANTES de que envíen su formulario.
+  `allowed_senders` (mapa `correo → user_id`). Dar de alta a alguien es solo
+  añadirlo ahí ANTES de que envíe su formulario; lo más cómodo es
+  `python3 manage.py add-user <correo> <user_id>` (ver "Dar de alta usuarios").
 - Hace **backup** del config anterior en `06_Backups/configs/`, aplica el
   nuevo en `configs/<user_id>.yaml` y responde "Configuración aplicada ✓"
   al remitente.
@@ -135,6 +149,53 @@ Pasada manual sin esperar al bot:
 python3 config_inbox.py            # aplica lo pendiente
 python3 config_inbox.py --dry-run  # solo mira, no toca nada
 ```
+
+## Dar de alta usuarios (y quitar alertas)
+Para que alguien reciba avisos, su correo debe estar en la lista blanca de
+`bot_settings.yaml`. `manage.py` lo gestiona sin editar el YAML a mano (con
+backup y sin romper los comentarios). **Desde `01_Core`:**
+
+```powershell
+# Ver usuarios, sus configs, alertas y filas en la BD
+python3 manage.py list
+
+# Dar de alta un correo -> user_id (luego esa persona envía su formulario)
+python3 manage.py add-user correo.de.marc@gmail.com marc
+
+# Dar de baja (NO borra su config ni su BD)
+python3 manage.py remove-user marc
+```
+
+Alta completa, paso a paso:
+1. `add-user <correo> <user_id>` autoriza ese correo.
+2. Esa persona rellena el formulario y lo envía a `wallabot01@gmail.com`
+   **desde ese correo**.
+3. El bot la detecta (≤ 5 min), valida y crea `configs/<user_id>.yaml`.
+
+**Eliminar una alerta activa:** una alerta es una entrada de la lista `alerts:`
+del config. Para quitarla, edita `configs/<user_id>.yaml` y borra ese bloque
+`- name: ...`, o regenera la config en el formulario sin esa alerta y reenvíala
+(la del buzón sustituye a la anterior). Lo que esa alerta dejó en `alerts.db`
+queda huérfano pero es inofensivo (ya no se consulta).
+
+## Horario de sueño (descanso nocturno)
+Por defecto el bot **no hace nada de 01:00 a 07:00 (hora de Madrid)**: ni busca
+ni revisa el buzón. Se configura en `bot_settings.yaml`:
+
+```yaml
+sleep_hours:
+  enabled: true
+  start: 1                 # empieza a dormir a esta hora
+  end: 7                   # despierta a esta hora (no incluida)
+  timezone: "Europe/Madrid"
+```
+
+- Para desactivarlo: `enabled: false`.
+- Una pasada manual (`python3 main.py --once --force`, o el botón "Run workflow"
+  de GitHub) se salta el sueño.
+- En **GitHub Actions** el horario está además en el workflow (paso `gate`), que
+  salta las pasadas de madrugada para no gastar minutos. Si cambias las horas,
+  cámbialas en los dos sitios.
 
 ## Frecuencia
 `check_interval_minutes` en el config de cada usuario (recomendado 5-15).
@@ -154,6 +215,19 @@ python3 probe_api.py
 
 # Test del filtro de entrega (radio / envío). No usa red ni Ollama.
 python3 test_delivery.py
+
+# Test de la cascada de LLMs (orden, cooldown, circuit breaker). Sin red.
+python3 test_cascade.py
+
+# Test de los proveedores cloud (Groq/Gemini) y del adaptador. Sin red.
+python3 test_llm_cloud.py
+
+# Test de los proveedores nuevos (Cerebras/OpenRouter/GitHub Models) y de
+# configure_from_settings (cascada/modelos/claves desde bot_settings.yaml). Sin red.
+python3 test_new_providers.py
+
+# Test de bajadas de precio y recuperación de descartados. Sin red.
+python3 test_price_drops.py
 ```
 
 ## Cómo se decide cada anuncio (árbol de decisión)
@@ -232,8 +306,8 @@ encendido.
 - La distinción base/expansión/componentes depende de cómo describa el
   vendedor el anuncio. El LLM acierta mucho más que las reglas de palabras,
   pero ningún sistema llega al 100%.
-- `on_unknown: base` (por defecto) prefiere dejar pasar la duda antes que
-  perder un anuncio válido. Cámbialo a `drop` si prefieres menos ruido.
+- Ante la duda, el sistema prefiere **dejar pasar** el anuncio antes que perder
+  uno válido (mejor un falso positivo que una alerta que no llega).
 - La búsqueda usa el orden por defecto de Wallapop (relevancia/distancia),
   no por más reciente. Los anuncios nuevos pueden aparecer más tarde en el
   ranking, pero se detectan igual al comparar con la base de datos.

@@ -15,9 +15,11 @@ El LLM se reserva para lo que sí necesita contexto:
     LOTE de varios juegos que incluye el buscado (ignorando listas de tags).
 
 Si el LLM activo no está disponible, se aplican respaldos conservadores.
-El LLM puede ser Ollama (local, por defecto) o un proveedor cloud gratuito
-(Groq / Gemini) seleccionado con la variable de entorno LLM_PROVIDER — ver
-la sección "LLM helper" más abajo.
+El LLM funciona como CASCADA de proveedores (el primero que responde gana; el
+resto son red de seguridad): Ollama (local), Groq, Cerebras, Gemini, OpenRouter
+y GitHub Models, más el terminal 'rules'. El orden y los modelos se configuran
+en bot_settings.yaml (sección 'llm') o por variables de entorno — ver la
+sección "LLM helper" más abajo.
 """
 
 import os
@@ -178,37 +180,81 @@ def title_matches(target, title):
 # ---------------------------------------------------------------------------
 #  LLM helper — cascada con circuit breaker por proveedor
 # ---------------------------------------------------------------------------
-# Variables de entorno:
-#   GEMINI_API_KEY   = clave de aistudio.google.com   (1er proveedor)
-#   GROQ_API_KEY     = clave de console.groq.com      (2o proveedor)
-#   LLM_API_KEY +
-#   LLM_BASE_URL     = API compatible OpenAI adicional (opcional)
-#   LLM_OLLAMA_HOST  = host de Ollama (por defecto localhost)
+# En operacion normal SOLO se llama al PRIMER proveedor de la cascada. El resto
+# son red de seguridad: un proveedor solo se salta hacia el siguiente cuando su
+# circuit breaker esta abierto (429 sostenido -> cooldown) o cuando la llamada
+# falla. Anadir mas proveedores NO ralentiza el caso bueno; solo da resiliencia.
 #
-# Orden de cascada (configurable con LLM_CASCADE):
-#   Por defecto: gemini,groq,rules
-#   Ollama local: LLM_CASCADE=ollama,gemini,groq,rules
-#   Solo reglas:  LLM_CASCADE=rules
+# CONFIGURACION. Todo admite tres fuentes con esta prioridad:
+#   variable de entorno  >  bot_settings.yaml (seccion 'llm')  >  valor por defecto
+# La seccion 'llm' la aplica classifier.configure_from_settings(), que llama
+# main.py al arrancar. Asi el orden y los modelos viven en bot_settings.yaml
+# (comun a todos los usuarios) y las claves pueden ir como Secrets en CI.
 #
-# LLM_COOLDOWN = segundos de pausa por proveedor tras 429 sostenido (def. 600)
+# Claves de API (variable de entorno -> proveedor):
+#   GROQ_API_KEY        -> groq          (console.groq.com)
+#   CEREBRAS_API_KEY    -> cerebras      (cloud.cerebras.ai)
+#   GEMINI_API_KEY      -> gemini        (aistudio.google.com)
+#   OPENROUTER_API_KEY  -> openrouter    (openrouter.ai)
+#   GH_MODELS_TOKEN     -> githubmodels  (PAT con permiso models:read)
+#   LLM_API_KEY + LLM_BASE_URL -> openai (cualquier API compatible adicional)
+#   OLLAMA_HOST         -> ollama        (local, por defecto localhost:11434)
+#
+# Orden de cascada (LLM_CASCADE o llm.cascade):
+#   Por defecto: groq,cerebras,gemini,openrouter,githubmodels,rules
+#   Ollama local: ollama,groq,...        Solo reglas: rules
+#
+# LLM_COOLDOWN (o llm.cooldown_seconds) = pausa por proveedor tras 429 (def. 600)
 
-_GROQ_BASE   = "https://api.groq.com/openai/v1"
-_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
+_GROQ_BASE         = "https://api.groq.com/openai/v1"
+_GEMINI_BASE       = "https://generativelanguage.googleapis.com/v1beta"
+_CEREBRAS_BASE     = "https://api.cerebras.ai/v1"
+_OPENROUTER_BASE   = "https://openrouter.ai/api/v1"
+_GITHUBMODELS_BASE = "https://models.github.ai/inference"
+
+# Proveedores que hablan el dialecto de OpenAI (/chat/completions). 'openai' usa
+# LLM_BASE_URL; el resto, su URL fija. Gemini y ollama van por su propia ruta.
+_OPENAI_COMPAT_BASE = {
+    "groq":         _GROQ_BASE,
+    "cerebras":     _CEREBRAS_BASE,
+    "openrouter":   _OPENROUTER_BASE,
+    "githubmodels": _GITHUBMODELS_BASE,
+}
 
 _DEFAULT_MODELS = {
-    "groq":   "llama-3.1-8b-instant",
-    "gemini": "gemini-2.5-flash-lite",
-    "openai": "",
-    "ollama": "",               # se usa el model del config yaml
+    "groq":         "llama-3.1-8b-instant",
+    "cerebras":     "llama-3.3-70b",
+    "gemini":       "gemini-2.5-flash-lite",
+    "openrouter":   "meta-llama/llama-3.3-70b-instruct:free",
+    "githubmodels": "openai/gpt-4o-mini",
+    "openai":       "",
+    "ollama":       "qwen2.5:3b",
 }
 
-# Throttle: segundos mínimos entre llamadas a cada proveedor
+# Variable de entorno que lleva la API key de cada proveedor.
+_KEY_ENV = {
+    "groq":         "GROQ_API_KEY",
+    "cerebras":     "CEREBRAS_API_KEY",
+    "gemini":       "GEMINI_API_KEY",
+    "openrouter":   "OPENROUTER_API_KEY",
+    "githubmodels": "GH_MODELS_TOKEN",
+    "openai":       "LLM_API_KEY",
+}
+
+# Throttle: segundos minimos entre llamadas a cada proveedor (segun su RPM).
 _DEFAULT_INTERVALS = {
     "ollama": 0.0, "groq": 2.1, "openai": 2.1, "gemini": 4.1,
+    "cerebras": 2.1, "openrouter": 3.1, "githubmodels": 6.1,
 }
 
+# Rellenados por configure_from_settings() desde bot_settings.yaml (la env-var
+# del mismo concepto siempre tiene prioridad sobre esto).
+_SETTINGS_MODELS: dict[str, str] = {}
+_SETTINGS_KEYS: dict[str, str] = {}
+
 # --- cascade ---
-_raw_cascade = os.getenv("LLM_CASCADE", "gemini,groq,rules")
+_raw_cascade = os.getenv("LLM_CASCADE",
+                         "groq,cerebras,gemini,openrouter,githubmodels,rules")
 LLM_CASCADE   = [p.strip().lower() for p in _raw_cascade.split(",") if p.strip()]
 # Para compatibilidad: si se define LLM_PROVIDER a un valor concreto y
 # LLM_CASCADE no está en el entorno, lo respetamos.
@@ -219,8 +265,44 @@ if "LLM_PROVIDER" in os.environ and "LLM_CASCADE" not in os.environ:
     else:
         LLM_CASCADE = ["rules"]
 
-# Para que main.py pueda hacer "LLM activo: gemini / …"
+# Para que main.py pueda hacer "LLM activo: groq / …"
 LLM_PROVIDER = LLM_CASCADE[0] if LLM_CASCADE else "rules"
+
+
+def configure_from_settings(settings):
+    """Aplica la seccion 'llm' de bot_settings.yaml (cascada, modelos, claves,
+    cooldown). Una variable de entorno del mismo concepto SIEMPRE manda sobre
+    esto (util para GitHub Secrets). Idempotente; la llama main.py al arrancar."""
+    global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN
+    llm = (settings or {}).get("llm") or {}
+
+    if "LLM_CASCADE" not in os.environ and "LLM_PROVIDER" not in os.environ:
+        casc = llm.get("cascade")
+        if casc:
+            LLM_CASCADE = [str(p).strip().lower() for p in casc if str(p).strip()]
+            LLM_PROVIDER = LLM_CASCADE[0] if LLM_CASCADE else "rules"
+
+    for prov, model in (llm.get("models") or {}).items():
+        if model:
+            _SETTINGS_MODELS[str(prov).strip().lower()] = str(model).strip()
+
+    for prov, key in (llm.get("keys") or {}).items():
+        if key:
+            _SETTINGS_KEYS[str(prov).strip().lower()] = str(key).strip()
+
+    if "LLM_COOLDOWN" not in os.environ and llm.get("cooldown_seconds") is not None:
+        try:
+            _LLM_COOLDOWN = float(llm["cooldown_seconds"])
+        except (TypeError, ValueError):
+            log.warning("llm.cooldown_seconds invalido: %s", llm.get("cooldown_seconds"))
+
+
+def get_ollama_model():
+    """Modelo de Ollama efectivo (entorno > bot_settings.yaml > por defecto)."""
+    return (os.getenv("LLM_MODEL")
+            or _SETTINGS_MODELS.get("ollama")
+            or _DEFAULT_MODELS.get("ollama")
+            or "qwen2.5:3b")
 
 # --- circuit breakers (un reloj por proveedor, en memoria) ---
 try:
@@ -259,17 +341,16 @@ def _throttle(provider: str) -> None:
 
 
 def _cloud_model(provider: str) -> str:
-    return os.getenv("LLM_MODEL") or _DEFAULT_MODELS.get(provider, "")
+    return (os.getenv("LLM_MODEL")
+            or _SETTINGS_MODELS.get(provider)
+            or _DEFAULT_MODELS.get(provider, ""))
 
 
 def _api_key(provider: str) -> str:
-    if provider == "groq":
-        return os.getenv("GROQ_API_KEY", "")
-    if provider == "gemini":
-        return os.getenv("GEMINI_API_KEY", "")
-    if provider == "openai":
-        return os.getenv("LLM_API_KEY", "")
-    return ""
+    env = _KEY_ENV.get(provider)
+    if env and os.getenv(env):
+        return os.getenv(env, "")
+    return _SETTINGS_KEYS.get(provider, "")
 
 
 def _json_from_text(text):
@@ -321,7 +402,7 @@ def _ask_provider(provider, model, schema, messages, timeout=120):
     _throttle(provider)
     if provider == "gemini":
         return _ask_gemini(provider, key, schema, messages, timeout)
-    if provider in ("groq", "openai"):
+    if provider in _OPENAI_COMPAT_BASE or provider == "openai":
         return _ask_openai_compat(provider, key, schema, messages, timeout)
     raise requests.RequestException("proveedor desconocido: '%s'" % provider)
 
@@ -355,9 +436,9 @@ def _ask_ollama(model, schema, messages, timeout):
 
 
 def _ask_openai_compat(provider, key, schema, messages, timeout):
-    """Groq y cualquier API compatible con OpenAI (LLM_BASE_URL)."""
-    base = (_GROQ_BASE if provider == "groq"
-            else os.getenv("LLM_BASE_URL", "").rstrip("/"))
+    """Groq, Cerebras, OpenRouter, GitHub Models y cualquier API compatible con
+    OpenAI (provider='openai' via LLM_BASE_URL)."""
+    base = _OPENAI_COMPAT_BASE.get(provider) or os.getenv("LLM_BASE_URL", "").rstrip("/")
     if not base:
         raise requests.RequestException("falta LLM_BASE_URL para 'openai'")
     props = ", ".join((schema.get("properties") or {}).keys())
@@ -372,6 +453,10 @@ def _ask_openai_compat(provider, key, schema, messages, timeout):
         "response_format": {"type": "json_object"},
     }
     headers = {"Authorization": "Bearer " + key}
+    if provider == "openrouter":
+        # Opcional pero recomendado por OpenRouter (atribucion; no es obligatorio).
+        headers["HTTP-Referer"] = "https://github.com/wallabot"
+        headers["X-Title"] = "Wallapop Alerts"
     r = _post_with_retry(provider, base + "/chat/completions",
                          headers, payload, timeout)
     return _json_from_text(r.json()["choices"][0]["message"]["content"])
@@ -417,7 +502,7 @@ def llm_available():
             parts.append("%s[cooldown]" % p)
         else:
             parts.append("%s/%s" % (p, model))
-    cascade_str = " → ".join(parts)
+    cascade_str = " -> ".join(parts)
     # Comprobación rápida del primer proveedor activo (no rules)
     first = next((p for p in LLM_CASCADE if p != "rules" and not _breaker_open(p)), None)
     if first is None:
@@ -428,14 +513,11 @@ def llm_available():
     if not key:
         return False, cascade_str + " (falta API key)"
     try:
-        if first == "groq":
-            r = requests.get(_GROQ_BASE + "/models", timeout=8,
-                             headers={"Authorization": "Bearer " + key})
-        elif first == "gemini":
+        if first == "gemini":
             r = requests.get(_GEMINI_BASE + "/models", timeout=8,
                              headers={"x-goog-api-key": key})
         else:
-            base = os.getenv("LLM_BASE_URL", "").rstrip("/")
+            base = _OPENAI_COMPAT_BASE.get(first) or os.getenv("LLM_BASE_URL", "").rstrip("/")
             if not base:
                 return False, cascade_str + " (falta LLM_BASE_URL)"
             r = requests.get(base + "/models", timeout=8,

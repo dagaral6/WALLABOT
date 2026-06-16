@@ -9,7 +9,7 @@ email:
   # App Password de 16 caracteres (NO tu contraseña normal):
   # https://myaccount.google.com/apppasswords
   app_password: "zbmj kkzj cezy shkg"
-  recipient: "wallabot01@gmail.com"
+  recipient: "dariogarciaalvarez01@gmail.com" # aquí puedes poner tu correo personal, o el mismo que el sender.
 
 # Cada cuántos minutos comprobar Wallapop (recomendado: 5-15)
 check_interval_minutes: 30
@@ -30,19 +30,13 @@ delivery:
   shipping: true
 
 # ------------------------------------------------------------
-#  CLASIFICADOR (juego base vs expansión vs componentes)
+#  FILTRO INTELIGENTE (IA)
+#   use_ai: true  -> usa la cascada de LLM (definida en bot_settings.yaml)
+#                    para los casos dudosos. Más preciso, sobre todo con lotes.
+#   use_ai: false -> solo reglas. Más rápido, pero un anuncio cuyo TÍTULO no
+#                    contenga tus palabras nunca se pillará como lote.
 # ------------------------------------------------------------
-classifier:
-  # Usar el LLM local (Ollama) para los casos dudosos. Si lo pones en
-  # false, solo se usan reglas (más rápido, algo menos preciso).
-  use_llm: true
-  # Modelo de Ollama. Instálalo antes con:  ollama pull llama3.1
-  # Alternativas ligeras: "qwen2.5:3b", "llama3.2:3b"
-  model: "qwen2.5:3b"
-  # Qué hacer cuando ni reglas ni LLM deciden con claridad:
-  #   "base"  = ser permisivo, dejar pasar la duda (recomendado)
-  #   "drop"  = descartar la duda (menos ruido, riesgo de perder alguno)
-  on_unknown: "base"
+use_ai: true
 
 # ============================================================
 #  ALERTAS  (una por juego o grupo de palabras)

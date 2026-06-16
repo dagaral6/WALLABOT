@@ -7,12 +7,15 @@ Flujo por ciclo (eficiente con el LLM):
   1) Pide a Wallapop los resultados (sin filtro de precio, para no perder lotes).
   2) Clasifica SOLO los anuncios nuevos (los ya vistos no se reclasifican).
   3) Aplica categoría deseada + precio (con bypass para lotes).
-  4) Detecta bajas: items que notificamos y ya no aparecen.
+  4) Detecta BAJADAS DE PRECIO en lo ya notificado y recupera anuncios que se
+     habían descartado por caros y ahora entran en presupuesto.
+  5) Detecta bajas: items que notificamos y ya no aparecen.
 
 Uso:
     python main.py            # bucle multi-config (cada usuario a su ritmo)
     python main.py --once     # una pasada de todos los configs
     python main.py --seed     # registra lo actual SIN avisar (todos)
+    python main.py --force    # ignora la ventana de sueño (1-7h) en esta ejecución
 
 Multi-config: hay un YAML por usuario en 01_Core/configs/<user_id>.yaml.
 Llegan solos por correo (config_inbox.py + lista blanca en bot_settings.yaml)
@@ -25,6 +28,11 @@ import time
 import math
 import shutil
 import logging
+from datetime import datetime
+try:
+    from zoneinfo import ZoneInfo
+except Exception:          # Python <3.9 o sin tzdata instalado
+    ZoneInfo = None
 
 import yaml
 
@@ -85,6 +93,15 @@ def load_all_configs():
         else:
             log.warning("Config '%s' sin alertas: se ignora.", fn)
     return out
+
+
+def _use_ai(cfg):
+    """¿Usar IA (cascada de LLM) para clasificar? Lee el campo simplificado
+    'use_ai'; si no está, cae al antiguo 'classifier.use_llm' (compat). Por
+    defecto, sí."""
+    if "use_ai" in cfg:
+        return bool(cfg.get("use_ai"))
+    return bool((cfg.get("classifier") or {}).get("use_llm", True))
 
 
 def _hard_excluded(item, alert):
@@ -186,9 +203,8 @@ def evaluate(item, alert, cfg):
     if _hard_excluded(item, alert):
         return "reject", "excluded"
 
-    cls = cfg.get("classifier", {})
-    use_llm = cls.get("use_llm", True)
-    model = cls.get("model", "qwen2.5:3b")
+    use_llm = _use_ai(cfg)
+    model = classifier.get_ollama_model()
     target = alert["keywords"]
     title = item.get("title", "")
     desc = item.get("description", "")
@@ -239,14 +255,16 @@ def process_alert(user_id, config, alert, notify_enabled=True):
         longitude=config["location"]["longitude"],
         min_price=None, max_price=None,   # filtramos nosotros (bypass de lotes)
     )
-    raw_ids = {it["id"] for it in results}
+    raw_by_id = {it["id"]: it for it in results}
+    raw_ids = set(raw_by_id)
 
-    known = database.get_known_ids(db_key)     # ya clasificados antes
-    kept_rows = database.get_kept_rows(db_key)  # los que notificamos en su día
+    known = database.get_known_ids(db_key)         # ya clasificados antes
+    kept_rows = database.get_kept_rows(db_key)     # los que notificamos en su día
+    rejected_rows = database.get_rejected_rows(db_key)  # descartados (para recuperar)
+    want = alert.get("want") or ["base", "lote"]
 
-    # Solo clasificamos los anuncios NUEVOS.
+    # --- 1) NUEVOS: solo clasificamos los anuncios que no habíamos visto -----
     candidates = [it for it in results if it["id"] not in known]
-
     # Filtro de entrega (radio / envío) ANTES de clasificar: así no gastamos
     # LLM en anuncios que el usuario no podría recibir según su config.
     n_candidates = len(candidates)
@@ -261,6 +279,46 @@ def process_alert(user_id, config, alert, notify_enabled=True):
             it["category"] = category
             new_kept.append(it)
 
+    # --- 2) BAJADAS DE PRECIO en anuncios que YA notificamos y siguen vivos --
+    # "Cualquier bajada" respecto al último precio visto. Si sube, refrescamos
+    # la referencia (sin avisar) para comparar futuras bajadas con el último.
+    price_drops, price_updates = [], []   # price_updates: (id, nuevo_precio)
+    for iid, row in kept_rows.items():
+        it = raw_by_id.get(iid)
+        if it is None:
+            continue                       # desaparecido -> se trata como baja
+        old, new = row.get("price"), it.get("price")
+        if old is None or new is None:
+            continue
+        if new < old:
+            drop = dict(it)
+            drop["old_price"], drop["category"] = old, row.get("category")
+            price_drops.append(drop)
+            price_updates.append((iid, new))
+        elif new != old:
+            price_updates.append((iid, new))
+
+    # --- 3) RECUPERADOS: rechazados por precio que ahora entran (han bajado) --
+    resurrected, promoted = [], []         # promoted: (id, nuevo_precio) -> keep
+    for iid, row in rejected_rows.items():
+        it = raw_by_id.get(iid)
+        if it is None:
+            continue
+        cat = row.get("category")
+        # Solo categorías que el usuario quiere y que son producto real.
+        if cat not in want or cat in ("excluded", "no_title_match", "not_game"):
+            continue
+        old, new = row.get("price"), it.get("price")
+        if new is None:
+            continue
+        # Tiene que entrar ahora en el filtro de precio Y haber bajado.
+        if _price_ok(it, alert) and (old is None or new < old):
+            res = dict(it)
+            res["old_price"], res["category"] = old, cat
+            res["recovered"] = True   # bajó hasta entrar en tu presupuesto
+            resurrected.append(res)
+            promoted.append((iid, new))
+
     # Bajas: items que notificamos y cuyo listing ya no aparece.
     sold_ids = set(kept_rows) - raw_ids
     sold_items = [kept_rows[i] for i in sold_ids]
@@ -270,15 +328,20 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     rejected_gone = rejected_ids - raw_ids
 
     log.info("  -> [%s] %d resultados | %d nuevos | %d fuera por entrega | "
-             "%d clasificados | %d aceptados | %d retirados",
+             "%d aceptados | %d bajadas | %d recuperados | %d retirados",
              user_id, len(results), n_candidates, n_descartados_entrega,
-             len(candidates), len(new_kept), len(sold_items))
+             len(new_kept), len(price_drops), len(resurrected), len(sold_items))
 
     database.add_items(db_key, decided)
+    database.update_prices(db_key, price_updates)
+    database.promote_to_keep(db_key, promoted)
     database.delete_items(db_key, sold_ids | rejected_gone)
 
+    # Para el email, los recuperados son también "bajada de precio".
+    all_drops = price_drops + resurrected
+
     if notify_enabled:
-        notifier.notify(config, name, new_kept, sold_items)
+        notifier.notify(config, name, new_kept, sold_items, all_drops)
     else:
         log.info("  (modo seed: registrado sin enviar email)")
 
@@ -321,8 +384,7 @@ def _bootstrap_data_dir():
 
 
 def _llm_banner(configs):
-    if not any((c.get("classifier") or {}).get("use_llm", True)
-               for c in configs.values()):
+    if not any(_use_ai(c) for c in configs.values()):
         return
     ok, desc = classifier.llm_available()
     if ok:
@@ -349,10 +411,78 @@ def _check_inbox(last_ts):
     return now, applied
 
 
+# ---------------------------------------------------------------------------
+#  VENTANA DE SUEÑO (no buscar de madrugada)
+# ---------------------------------------------------------------------------
+
+def _sleep_config():
+    """Lee la ventana de sueño de bot_settings.yaml. Devuelve dict o None.
+
+    Estructura esperada:
+        sleep_hours:
+          enabled: true
+          start: 1            # hora (en 'timezone') a la que empieza a dormir
+          end: 7              # hora a la que despierta (NO incluida)
+          timezone: "Europe/Madrid"
+
+    Override por entorno: SLEEP_HOURS_ENABLED=0/1.
+    """
+    settings = config_inbox.load_settings() or {}
+    sh = dict(settings.get("sleep_hours") or {})
+    env = os.getenv("SLEEP_HOURS_ENABLED")
+    if env is not None:
+        sh["enabled"] = env.strip().lower() in ("1", "true", "yes", "si", "sí", "on")
+    if not sh.get("enabled"):
+        return None
+    try:
+        return {
+            "start": int(sh.get("start", 1)),
+            "end": int(sh.get("end", 7)),
+            "tz": str(sh.get("timezone") or "Europe/Madrid"),
+        }
+    except (TypeError, ValueError):
+        log.warning("sleep_hours mal configurado: %s (se ignora).", sh)
+        return None
+
+
+def _now_hour(tz_name):
+    """Hora (0-23) actual en la zona indicada. Si zoneinfo no está disponible
+    (Windows sin tzdata), cae a la hora local del sistema: para una máquina en
+    España y para GitHub Actions (TZ=Europe/Madrid) ya es la hora correcta."""
+    if ZoneInfo is not None:
+        try:
+            return datetime.now(ZoneInfo(tz_name)).hour
+        except Exception:
+            pass
+    return datetime.now().hour
+
+
+def _is_sleeping(force=False, cfg=None):
+    """¿Toca dormir ahora? Las ejecuciones manuales (--force o el botón
+    'Run workflow' de GitHub, que define GITHUB_EVENT_NAME=workflow_dispatch)
+    ignoran el horario de sueño."""
+    if force or os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        return False
+    cfg = cfg if cfg is not None else _sleep_config()
+    if not cfg:
+        return False
+    h = _now_hour(cfg["tz"])
+    s, e = cfg["start"], cfg["end"]
+    if s == e:
+        return False
+    if s < e:
+        return s <= h < e
+    return h >= s or h < e        # ventana que cruza medianoche (p.ej. 23->7)
+
+
 def main():
     args = sys.argv[1:]
+    force = "--force" in args
     _bootstrap_data_dir()
     database.init_db()
+    # Configura la cascada de LLM (orden, modelos, claves) desde bot_settings.yaml;
+    # las variables de entorno (Secrets en CI) siguen teniendo prioridad.
+    classifier.configure_from_settings(config_inbox.load_settings())
     configs = load_all_configs()
 
     if not configs:
@@ -373,6 +503,9 @@ def main():
         return
 
     if "--once" in args:
+        if _is_sleeping(force):
+            log.info("Horario de sueño: no se hace nada en esta pasada.")
+            return
         _, applied = _check_inbox(None)
         if applied:
             configs = load_all_configs()
@@ -384,8 +517,23 @@ def main():
              "corre segun su check_interval_minutes. Ctrl+C para parar.")
     last_run = {}        # user_id -> time.monotonic() de su ultimo ciclo
     last_inbox = None
+    sleeping = False
     try:
         while True:
+            if _is_sleeping(force):
+                if not sleeping:
+                    cfg_s = _sleep_config()
+                    if cfg_s:
+                        log.info("Entrando en horario de sueño "
+                                 "(%02d:00-%02d:00 %s): sin búsquedas ni buzón "
+                                 "hasta despertar.",
+                                 cfg_s["start"], cfg_s["end"], cfg_s["tz"])
+                    sleeping = True
+                time.sleep(60)
+                continue
+            if sleeping:
+                log.info("Fin del horario de sueño: reanudando.")
+                sleeping = False
             last_inbox, applied = _check_inbox(last_inbox)
             if applied:
                 log.info("Configs aplicadas desde el buzon: %s",

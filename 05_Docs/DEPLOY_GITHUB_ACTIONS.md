@@ -29,8 +29,22 @@ todos los overrides por variables de entorno.
 | Secreto | Valor | Para que |
 |---|---|---|
 | `GMAIL_APP_PASSWORD` | app password de wallabot01 | SMTP + IMAP |
-| `GROQ_API_KEY` | clave `gsk_...` de console.groq.com | clasificador LLM |
+| `GROQ_API_KEY` | clave `gsk_...` de console.groq.com | clasificador LLM (1o de la cascada) |
+| `CEREBRAS_API_KEY` | clave de cloud.cerebras.ai | clasificador LLM (respaldo) |
+| `GEMINI_API_KEY` | clave de aistudio.google.com | clasificador LLM (respaldo) |
+| `OPENROUTER_API_KEY` | clave de openrouter.ai | clasificador LLM (respaldo) |
+| `GH_MODELS_TOKEN` | PAT con permiso `models:read` | clasificador LLM (respaldo) |
 | `ALLOWED_SENDERS` | `correo:uid,correo:uid` | lista blanca de remitentes |
+
+No hace falta crear todos: el bot solo usa el **primero de la cascada** que
+tenga clave; los que falten se saltan. El **orden** de la cascada vive en
+`01_Core/bot_settings.yaml` (sección `llm`), no en el workflow (puedes forzarlo
+en CI descomentando `LLM_CASCADE` en `.github/workflows/wallabot.yml`).
+
+> **OJO con GitHub Models:** GitHub **no permite** crear secretos cuyo nombre
+> empiece por `GITHUB_`. Por eso el secreto se llama **`GH_MODELS_TOKEN`** (y la
+> variable de entorno que lee el bot también). Crea un *Personal Access Token*
+> (fine-grained o classic) con permiso `models:read`.
 
 Los secretos tienen prioridad sobre los YAML del repo (codigo ya
 preparado). `ALLOWED_SENDERS` como secreto ademas evita exponer correos

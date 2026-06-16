@@ -3,20 +3,26 @@ config_inbox.py
 ---------------
 Extraccion automatica de configs desde el buzon de wallabot01@gmail.com.
 
-El formulario HTML envia un correo con:
+El formulario HTML envia dos tipos de correo:
+
+  APLICAR (crear/editar alertas):
     Asunto: "ALERTA WALLAPOP <NOMBRE>"
     Cuerpo: resumen legible
             ----- config_<nombre>.yaml -----
             <YAML completo>
+    -> backup del config anterior y escritura atomica de configs/<user_id>.yaml.
 
-Este modulo, por cada correo NO LEIDO con ese asunto:
-  1) Valida el remitente contra la lista blanca de bot_settings.yaml.
-  2) Extrae el YAML tras la linea marcador (reconstruye lineas partidas
-     por Gmail y recorta firmas/citas que vengan despues).
-  3) Valida el schema minimo (email, location, alerts).
-  4) Hace backup del config anterior del usuario en 06_Backups/configs/
-     y escribe configs/<user_id>.yaml de forma atomica.
-  5) Marca el correo como leido y responde con una confirmacion.
+  BORRAR (eliminar alertas):
+    Asunto: "BORRAR WALLAPOP <NOMBRE>"
+    Cuerpo: ----- ALERTAS A ELIMINAR -----
+            <un nombre de alerta por linea, o "TODAS">
+    -> quita esas alertas del config del usuario (backup + escritura atomica).
+       "TODAS" deja el config con la lista vacia (en pausa), sin borrar el archivo.
+
+En ambos casos valida el remitente contra la lista blanca de bot_settings.yaml,
+marca el correo como leido y responde una confirmacion que SIEMPRE incluye la
+lista de alertas activas que quedan (copiable para usarla luego en la pestaña
+"Eliminar alertas" del formulario).
 
 Uso suelto:
     python config_inbox.py            # una pasada real
@@ -52,6 +58,13 @@ BACKUPS_DIR = (os.path.join(DATA_DIR, "backups", "configs") if DATA_DIR
 SUBJECT_TOKEN = "ALERTA WALLAPOP"
 MARKER_RE = re.compile(
     r"^[ \t]*-{2,}\s*(?P<fname>\S+\.ya?ml)\s*-{2,}[ \t]*$", re.M)
+
+# --- borrado de alertas ---
+DELETE_TOKEN = "BORRAR WALLAPOP"
+DELETE_MARKER_RE = re.compile(
+    r"^[ \t]*-{2,}\s*ALERTAS A ELIMINAR\s*-{2,}[ \t]*$", re.M | re.I)
+_ALL_TOKENS = {"todas", "todos", "all", "todas las alertas",
+               "borrar todas", "*"}
 
 
 # ---------------------------------------------------------------- settings --
@@ -165,6 +178,30 @@ def _extract_yaml_block(body):
     return body[m.end():].lstrip("\n")
 
 
+def _extract_delete_names(body):
+    """Nombres de alerta a eliminar, tomados tras '----- ALERTAS A ELIMINAR -----'
+    (uno por linea). Devuelve la cadena "ALL" si pide borrarlas todas, una lista
+    de nombres, o None si no encuentra el marcador."""
+    m = DELETE_MARKER_RE.search(body)
+    if not m:
+        return None
+    names = []
+    for raw in body[m.end():].split("\n"):
+        s = raw.strip()
+        if not s or s.startswith("#"):
+            continue
+        if s == "--" or re.match(r"^-{2,}\s*$", s):   # firma / separador -> fin
+            break
+        s = re.sub(r"^[-*\u2022]\s+", "", s)           # quita viñeta "- ", "* "
+        s = s.strip().strip('"').strip("'").strip()
+        if not s:
+            continue
+        if s.lower() in _ALL_TOKENS:
+            return "ALL"
+        names.append(s)
+    return names
+
+
 def _schema_problems(d):
     """Validacion minima para no escribir configs que rompan main.py."""
     p = []
@@ -241,6 +278,80 @@ def _apply(user_id, sender, form_name, yaml_text, dry_run=False):
     return target
 
 
+def _active_alerts_html(alerts):
+    """Bloque HTML con las alertas activas + lista copiable (un nombre por
+    linea) para pegar en la pestaña 'Eliminar alertas' del formulario."""
+    names = [str(a.get("name", "?")) for a in (alerts or []) if a.get("name")]
+    if not names:
+        return "<p style='color:#666'>No tienes alertas activas ahora mismo.</p>"
+    items = "".join("<li>%s</li>" % html.escape(n) for n in names)
+    pre = html.escape("\n".join(names))
+    return (
+        "<p>Tus alertas activas (%d):</p><ul>%s</ul>"
+        "<p style='color:#666;font-size:13px'>Para borrar alguna, copia esta "
+        "lista y pégala en la pestaña <b>Eliminar alertas</b> del formulario:</p>"
+        "<pre style='background:#f4f4f4;border:1px solid #ddd;border-radius:6px;"
+        "padding:10px;white-space:pre-wrap;font-size:13px'>%s</pre>"
+        % (len(names), items, pre)
+    )
+
+
+def _apply_delete(user_id, names, dry_run=False):
+    """Elimina alertas del config de un usuario. 'names' es "ALL" o lista de
+    nombres. Devuelve (removed, remaining, not_found). Si no hay config,
+    removed/remaining son None."""
+    target = os.path.join(CONFIGS_DIR, user_id + ".yaml")
+    if not os.path.exists(target):
+        return None, None, []
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as e:
+        log.error("No se pudo leer el config de '%s' para borrar: %s", user_id, e)
+        return None, None, []
+
+    current = data.get("alerts") or []
+    if names == "ALL":
+        removed = [str(a.get("name", "?")) for a in current]
+        remaining, not_found = [], []
+    else:
+        targets = {n.strip().lower() for n in names}
+        remaining = [a for a in current
+                     if str(a.get("name", "")).strip().lower() not in targets]
+        removed = [str(a.get("name", "?")) for a in current
+                   if str(a.get("name", "")).strip().lower() in targets]
+        have = {str(a.get("name", "")).strip().lower() for a in current}
+        not_found = [n for n in names if n.strip().lower() not in have]
+
+    if not removed:                       # nada que borrar: no tocamos el archivo
+        return [], [str(a.get("name", "?")) for a in current], not_found
+
+    data["alerts"] = remaining
+
+    if dry_run:
+        log.info("[dry-run] Se eliminarian de '%s': %s", user_id, removed)
+        return removed, [str(a.get("name", "?")) for a in remaining], not_found
+
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    backup = os.path.join(BACKUPS_DIR, "%s_%s.yaml" % (user_id, stamp))
+    shutil.copy2(target, backup)
+    log.info("Backup antes de borrar alertas de '%s' -> %s", user_id, backup)
+
+    header = (
+        "# Config de '%s' actualizada automaticamente (borrado de alertas).\n"
+        "# %s | Eliminadas: %s\n\n"
+        % (user_id, time.strftime("%Y-%m-%d %H:%M:%S"), ", ".join(removed))
+    )
+    body = yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
+                          default_flow_style=False)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(header + body)
+    os.replace(tmp, target)
+    return removed, [str(a.get("name", "?")) for a in remaining], not_found
+
+
 def _reply(settings, to_addr, subject, body_html, dry_run=False):
     if not settings.get("reply_confirmation", True):
         return
@@ -269,6 +380,51 @@ def _mark_seen(M, num, dry_run=False):
 
 # ------------------------------------------------------------------ bucle --
 
+def _process_delete(M, num, settings, applied, dry_run,
+                    user_id, sender, subject, bodies):
+    """Maneja un correo 'BORRAR WALLAPOP': quita alertas del config del usuario."""
+    names = None
+    for body in bodies:
+        names = _extract_delete_names(body)
+        if names:                       # "ALL" o lista no vacia
+            break
+    _mark_seen(M, num, dry_run)
+
+    if not names:
+        log.error("Borrado de %s sin lista de alertas (asunto: '%s').",
+                  sender, subject)
+        _reply(settings, sender, "Re: " + subject,
+               "<div style='font-family:Arial'>No pude leer qué alertas borrar. "
+               "Usa la pestaña <b>Eliminar alertas</b> del formulario y vuelve a "
+               "enviarlo sin editar el cuerpo.</div>", dry_run)
+        return
+
+    removed, remaining, not_found = _apply_delete(user_id, names, dry_run)
+    if removed is None:
+        _reply(settings, sender, "Re: " + subject,
+               "<div style='font-family:Arial'>No encuentro tu configuración, "
+               "así que no hay alertas que borrar.</div>", dry_run)
+        return
+
+    if removed:
+        head = ("Eliminada(s) %d alerta(s): %s."
+                % (len(removed), html.escape(", ".join(removed))))
+    else:
+        head = "No borré ninguna alerta (ningún nombre coincidía con las tuyas)."
+    nf = ("<p style='color:#b00;font-size:13px'>No encontré (no borré): %s</p>"
+          % html.escape(", ".join(not_found))) if not_found else ""
+    body_html = ("<div style='font-family:Arial'>%s%s<br><br>%s</div>"
+                 % (head, nf,
+                    _active_alerts_html([{"name": n} for n in remaining])))
+    _reply(settings, sender, "Re: " + subject, body_html, dry_run)
+
+    if user_id in applied:
+        applied.remove(user_id)
+    applied.append(user_id)
+    log.info("Borrado de alertas de '%s' desde %s: %s",
+             user_id, sender, removed or "ninguna")
+
+
 def _process_message(M, num, settings, applied, dry_run):
     typ, data = M.fetch(num, "(BODY.PEEK[])")
     if typ != "OK" or not data or data[0] is None:
@@ -277,7 +433,10 @@ def _process_message(M, num, settings, applied, dry_run):
     msg = email.message_from_bytes(data[0][1])
     subject = str(make_header(decode_header(msg.get("Subject") or "")))
     sender = parseaddr(msg.get("From") or "")[1].strip().lower()
-    form_name = subject.upper().replace(SUBJECT_TOKEN, "").strip().title() or None
+    subj_up = subject.upper()
+    is_delete = DELETE_TOKEN in subj_up
+    token = DELETE_TOKEN if is_delete else SUBJECT_TOKEN
+    form_name = subj_up.replace(token, "").strip().title() or None
 
     user_id = settings["allowed_senders"].get(sender)
     if not user_id:
@@ -286,9 +445,17 @@ def _process_message(M, num, settings, applied, dry_run):
         _mark_seen(M, num, dry_run)
         return
 
+    bodies = [b.replace("\r\n", "\n").replace("\r", "\n")
+              for b in _body_candidates(msg)]
+
+    if is_delete:
+        _process_delete(M, num, settings, applied, dry_run,
+                        user_id, sender, subject, bodies)
+        return
+
+    # ---- APLICAR (crear / editar alertas) ----
     parsed_data, parsed_text = None, None
-    for body in _body_candidates(msg):
-        body = body.replace("\r\n", "\n").replace("\r", "\n")
+    for body in bodies:
         block = _extract_yaml_block(body)
         if not block:
             continue
@@ -310,12 +477,11 @@ def _process_message(M, num, settings, applied, dry_run):
     _mark_seen(M, num, dry_run)
 
     alerts = parsed_data.get("alerts") or []
-    names = ", ".join(str(a.get("name", "?")) for a in alerts)
     _reply(settings, sender, "Re: " + subject,
-           "<div style='font-family:Arial'>Configuracion aplicada &#10003;"
-           "<br>%d juego(s) vigilado(s): %s"
-           "<br>Avisos a: %s</div>"
-           % (len(alerts), names, parsed_data["email"]["recipient"]),
+           "<div style='font-family:Arial'>Configuración aplicada &#10003;<br>"
+           "Avisos a: %s<br><br>%s</div>"
+           % (html.escape(str(parsed_data["email"]["recipient"])),
+              _active_alerts_html(alerts)),
            dry_run)
 
     if user_id in applied:
@@ -345,11 +511,16 @@ def check_and_apply(settings=None, dry_run=False):
     try:
         M.login(user, pwd)
         M.select("INBOX")
-        typ, data = M.search(None, '(UNSEEN SUBJECT "%s")' % SUBJECT_TOKEN)
-        nums = data[0].split() if typ == "OK" and data and data[0] else []
+        nums = []
+        for tok in (SUBJECT_TOKEN, DELETE_TOKEN):
+            typ, data = M.search(None, '(UNSEEN SUBJECT "%s")' % tok)
+            if typ == "OK" and data and data[0]:
+                nums.extend(data[0].split())
+        # Sin duplicados y en orden ascendente (el correo mas reciente gana).
+        nums = sorted(set(nums), key=lambda b: int(b))
         if nums:
-            log.info("Buzon: %d correo(s) de config sin leer.", len(nums))
-        for num in nums:          # orden ascendente: el mas reciente gana
+            log.info("Buzon: %d correo(s) de config/borrado sin leer.", len(nums))
+        for num in nums:
             try:
                 _process_message(M, num, settings, applied, dry_run)
             except Exception:

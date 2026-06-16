@@ -58,9 +58,10 @@ proveedor cloud de capa GRATUITA. `classifier.py` elige el proveedor con
 | `gemini` | aistudio.google.com -> Get API key | `gemini-2.5-flash-lite` | ~1.000 peticiones/dia, 15/min |
 
 Notas importantes:
-- Con proveedor cloud se IGNORA el `classifier.model` de los configs de
-  usuario (es un nombre de modelo de Ollama); el modelo cloud se fija con
-  `LLM_MODEL` o el defecto del proveedor.
+- Con proveedor cloud no se usa el modelo de Ollama (que ahora vive en
+  `bot_settings.yaml` -> `llm.models.ollama`); el modelo cloud se fija en
+  `bot_settings.yaml` -> `llm.models.<proveedor>`, con `LLM_MODEL` o el
+  defecto del proveedor.
 - Hay throttle automatico (2,1 s groq / 4,1 s gemini) y reintentos ante
   HTTP 429: el primer ciclo grande tarda unos minutos mas; los siguientes
   solo clasifican novedades (un punyado de llamadas).

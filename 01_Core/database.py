@@ -1,10 +1,12 @@
 """
 database.py
 -----------
-SQLite. Guarda CADA anuncio visto por alerta junto con su categoría y la
-decisión tomada (keep/reject). Así:
+SQLite. Guarda CADA anuncio visto por alerta junto con su categoría, el precio
+y la decisión tomada (keep/reject). Así:
   - Cada listing se clasifica UNA sola vez (no repetimos llamadas al LLM).
   - Detectamos novedades (ids nuevos) y bajas (ids que desaparecen).
+  - Detectamos BAJADAS DE PRECIO: el precio guardado se actualiza en cada ciclo
+    y se compara con el actual (update_prices / promote_to_keep).
 """
 
 import os
@@ -69,12 +71,51 @@ def get_known_ids(alert_name, db_path=None):
 
 def get_kept_rows(alert_name, db_path=None):
     db_path = db_path or DB_PATH
-    """Items que SÍ notificamos en su día -> {id: row}. Para detectar ventas."""
+    """Items que SÍ notificamos en su día -> {id: row}. Para detectar ventas
+    y BAJADAS DE PRECIO (comparando el precio guardado con el actual)."""
     with _conn(db_path) as c:
         rows = c.execute(
             "SELECT * FROM seen_items WHERE alert_name = ? AND decision = 'keep'",
             (alert_name,)).fetchall()
     return {r["item_id"]: dict(r) for r in rows}
+
+
+def get_rejected_rows(alert_name, db_path=None):
+    db_path = db_path or DB_PATH
+    """Items vistos y RECHAZADOS -> {id: row}. Sirve para 'resucitar' los que se
+    descartaron por precio si ahora bajan dentro del presupuesto."""
+    with _conn(db_path) as c:
+        rows = c.execute(
+            "SELECT * FROM seen_items WHERE alert_name = ? AND decision = 'reject'",
+            (alert_name,)).fetchall()
+    return {r["item_id"]: dict(r) for r in rows}
+
+
+def update_prices(alert_name, id_price_pairs, db_path=None):
+    db_path = db_path or DB_PATH
+    """Actualiza el precio guardado de varios anuncios ya existentes.
+    id_price_pairs: iterable de (item_id, nuevo_precio)."""
+    pairs = [(p, alert_name, i) for (i, p) in id_price_pairs]
+    if not pairs:
+        return
+    with _conn(db_path) as c:
+        c.executemany(
+            "UPDATE seen_items SET price = ? WHERE alert_name = ? AND item_id = ?",
+            pairs)
+
+
+def promote_to_keep(alert_name, id_price_pairs, db_path=None):
+    db_path = db_path or DB_PATH
+    """Marca como 'keep' (y actualiza precio) anuncios antes rechazados que ahora
+    entran (bajada de precio que cruza el max_price). id_price_pairs: (id, precio)."""
+    pairs = [(p, alert_name, i) for (i, p) in id_price_pairs]
+    if not pairs:
+        return
+    with _conn(db_path) as c:
+        c.executemany(
+            "UPDATE seen_items SET decision = 'keep', price = ? "
+            "WHERE alert_name = ? AND item_id = ?",
+            pairs)
 
 
 def add_items(alert_name, decided_items, db_path=None):

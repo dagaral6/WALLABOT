@@ -11,6 +11,18 @@ imap:
 # Cada cuantos minutos se comprueba el buzon en busca de configs nuevas.
 inbox_check_minutes: 5
 
+# Ventana de sueño: el bot NO hace nada (ni busca en Wallapop ni revisa el
+# buzon) entre 'start' y 'end' (hora de 'timezone'). Por defecto 01:00-07:00
+# de Madrid. 'end' NO se incluye (a las 07:00 ya despierta). Las ejecuciones
+# manuales (boton "Run workflow" de GitHub, o "python main.py --force") se la
+# saltan. OJO: en GitHub Actions el horario se controla ADEMAS en el workflow
+# (.github/workflows/wallabot.yml, paso "gate"); manten ambos coherentes.
+sleep_hours:
+  enabled: true
+  start: 1
+  end: 7
+  timezone: "Europe/Madrid"
+
 # Lista blanca: correo remitente -> user_id
 # El user_id decide el archivo en configs/<user_id>.yaml, el prefijo en la
 # base de datos y que config sustituye cada correo nuevo de ese remitente.
@@ -21,4 +33,46 @@ allowed_senders:
   # correo.de.marc@gmail.com: marc   # RELLENA: el correo de Marc
 
 # Responder al remitente con una confirmacion cuando su config se aplica.
+# La confirmacion incluye la lista de alertas activas (para poder borrarlas
+# luego pegandola en la pestaña "Eliminar alertas" del formulario).
 reply_confirmation: true
+
+# ============================================================
+#  LLM — cascada de clasificacion (comun a TODOS los usuarios)
+# ============================================================
+# Se prueban en orden y gana el PRIMERO que responde; 'rules' es el terminal
+# (sin IA). En operacion normal solo se usa el primero: el resto son red de
+# seguridad y NO ralentizan nada. Cada valor admite override por variable de
+# entorno (util para Secrets en CI), que SIEMPRE tiene prioridad sobre esto.
+#
+# Para dar de alta cada proveedor (capa gratuita, sin tarjeta):
+#   groq          -> console.groq.com            (GROQ_API_KEY)
+#   cerebras      -> cloud.cerebras.ai           (CEREBRAS_API_KEY)  1M tok/dia, el mas rapido
+#   gemini        -> aistudio.google.com         (GEMINI_API_KEY)
+#   openrouter    -> openrouter.ai               (OPENROUTER_API_KEY) modelos ':free', 50/dia
+#   githubmodels  -> PAT con permiso models:read (GH_MODELS_TOKEN)
+llm:
+  cascade: [groq, cerebras, gemini, openrouter, githubmodels, rules]
+
+  # Modelo por proveedor (si se omite uno, se usa su valor por defecto).
+  models:
+    groq:         "llama-3.1-8b-instant"
+    cerebras:     "llama-3.3-70b"
+    gemini:       "gemini-2.5-flash-lite"
+    openrouter:   "meta-llama/llama-3.3-70b-instruct:free"
+    githubmodels: "openai/gpt-4o-mini"
+    ollama:       "qwen2.5:3b"        # solo si 'ollama' esta en la cascada (local)
+
+  # API keys. Dejalas vacias para usar variables de entorno (recomendado en CI)
+  # o pega aqui la clave (el repo es privado). La env-var del mismo proveedor
+  # SIEMPRE manda sobre lo que pongas aqui.
+  keys:
+    groq:         ""    # o variable GROQ_API_KEY
+    cerebras:     ""    # o variable CEREBRAS_API_KEY
+    gemini:       ""    # o variable GEMINI_API_KEY
+    openrouter:   ""    # o variable OPENROUTER_API_KEY
+    githubmodels: ""    # o variable GH_MODELS_TOKEN
+
+  # Pausa (segundos) que aplica un proveedor tras un 429 sostenido antes de
+  # volver a intentarse (circuit breaker). Override: variable LLM_COOLDOWN.
+  cooldown_seconds: 600

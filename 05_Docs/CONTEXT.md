@@ -20,11 +20,11 @@ Tiene dos partes:
 
 | Carpeta | Contenido |
 |---|---|
-| `01_Core/` | Backend Python: `main.py`, `scraper.py`, `classifier.py`, `notifier.py`, `database.py`, `config_inbox.py`, `bot_settings.yaml`, `configs/` (un YAML por usuario), `alerts.db`, `requirements.txt` |
-| `02_Herramienta/` | Configurador HTML (`wallapop_config_v15.html`) y zip del fuente React |
-| `03_Diagnostico/` | Scripts de diagnóstico: `diagnostico.py`, `check_db.py`, `probe_api.py`, `probe_catan.py`, `probe_inis.py`, `verify_fix.py`, `test_delivery.py`, `migrate_multiconfig.py` |
+| `01_Core/` | Backend Python: `main.py`, `manage.py` (admin CLI), `scraper.py`, `classifier.py`, `notifier.py`, `database.py`, `config_inbox.py`, `bot_settings.yaml`, `configs/` (un YAML por usuario), `alerts.db`, `requirements.txt` |
+| `02_Herramienta/` | Configurador HTML autocontenido (`wallapop_config_v17.html`, vanilla JS, sin build); zip del fuente React antiguo y `wallapop_config_v15.html` (histórico) |
+| `03_Diagnostico/` | Scripts de diagnóstico y tests: `diagnostico.py`, `check_db.py`, `probe_api.py`, `probe_catan.py`, `probe_inis.py`, `verify_fix.py`, `migrate_multiconfig.py`, y tests sin red `test_delivery.py`, `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_price_drops.py` |
 | `04_Logs/` | `raw_wallapop_response.json`, `output.txt` |
-| `05_Docs/` | `CONTEXT.md`, `README.md` |
+| `05_Docs/` | `CONTEXT.md`, `README.md`, `DEPLOY_GITHUB_ACTIONS.md`, `DEPLOY_RAILWAY.md` |
 | `06_Backups/` | Copias de seguridad de versiones anteriores |
 | `99_Obsoletos/` | Archivos descontinuados |
 
@@ -39,14 +39,15 @@ Tiene dos partes:
 
 | Archivo | Función |
 |---|---|
-| `main.py` | Orquestador y scheduler **multi-config**: tick de 60 s, cada usuario corre según su `check_interval_minutes`; comprueba el buzón y recarga configs al vuelo. Funciones: `evaluate()`, `process_alert(user_id, ...)`, `run_cycle(user_id, ...)`, `load_all_configs()`, `_check_inbox()`, `_price_ok()`, `_delivery_ok()`, `_haversine_km()`, `_hard_excluded()`. Flags `--seed` y `--once`. |
+| `main.py` | Orquestador y scheduler **multi-config**: tick de 60 s, cada usuario corre según su `check_interval_minutes`; comprueba el buzón y recarga configs al vuelo. **Ventana de sueño** (`_is_sleeping()`, `_sleep_config()`, `_now_hour()`). Al arrancar llama a `classifier.configure_from_settings()` (cascada/modelos/claves desde `bot_settings.yaml`). `process_alert()` detecta **novedades**, **bajadas de precio** y **recuperación** de anuncios antes descartados por caros, y bajas. Funciones: `evaluate()`, `process_alert(user_id, ...)`, `run_cycle()`, `load_all_configs()`, `_check_inbox()`, `_use_ai()`, `_price_ok()`, `_delivery_ok()`, `_haversine_km()`, `_hard_excluded()`. Flags `--seed`, `--once`, `--force`. |
+| `manage.py` | **Administración por CLI** sin editar YAML a mano. `list`, `add-user <correo> <user_id>` (backup + idempotente), `remove-user <correo|user_id>`. No toca configs ni BD al quitar un usuario. |
 | `scraper.py` | Búsqueda en la API de Wallapop con paginación completa via `meta.next_page`. Parámetros: `max_items=500`, `max_pages=10`, `page_pause=2s`, `retries=3`. `_normalize_item()` devuelve `id`, `title`, `description`, `price`, `url`, `image`, **`is_shippable`**, **`lat`**, **`lon`**. |
-| `classifier.py` | Híbrido regex + LLM **multi-proveedor** (`LLM_PROVIDER`: `ollama` local por defecto, `groq`, `gemini` u `openai`-compatible; throttle por proveedor + reintentos ante 429; todo el tráfico LLM pasa por `_ask()`). Categorías: `base`, `expansion`, `components`, `lote`, `not_game`, `unknown`. Fast-path determinista con `strong_base_signal()`. |
-| `database.py` | SQLite (`alerts.db`, tabla `seen_items`, 8 columnas). Ruta resuelta absolutamente via `__file__`. |
-| `notifier.py` | Gmail SMTP. Toda la config se lee de `config["email"]`, sin hardcodeos. |
-| `config_inbox.py` | Extractor IMAP: lee el buzón, valida remitente y YAML, hace backup y aplica el config. Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
-| `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `reply_confirmation`. **Nunca lo tocan los correos entrantes.** |
-| `configs/<user_id>.yaml` | Un config por usuario (ej. `dario.yaml`). Generados por el formulario y aplicados desde el buzón; en la BD cada alerta va como `user_id/nombre`. |
+| `classifier.py` | Híbrido regex + LLM en **cascada con circuit breaker**. Orden por defecto `groq,cerebras,gemini,openrouter,githubmodels,rules` (configurable en `bot_settings.yaml` → `llm.cascade` o por `LLM_CASCADE`). `_ask()` recorre los proveedores hasta que uno responde; un 429 sostenido manda al proveedor a *cooldown* (`LLM_COOLDOWN`/`llm.cooldown_seconds`, 600 s); `rules` es el terminal. Proveedores OpenAI-compatibles (`_OPENAI_COMPAT_BASE`): `groq`, `cerebras`, `openrouter`, `githubmodels` y `openai` (LLM_BASE_URL); más `gemini` (ruta propia) y `ollama` (local). `configure_from_settings()` aplica modelos/claves/orden del YAML (la env-var SIEMPRE manda); `get_ollama_model()` da el modelo local. Categorías: `base`, `expansion`, `components`, `lote`, `not_game`, `unknown`. |
+| `database.py` | SQLite (`alerts.db`, tabla `seen_items`). Guarda categoría **y precio** por anuncio. Funciones: `get_known_ids`, `get_kept_rows`, **`get_rejected_rows`**, `add_items`, `delete_items`, **`update_prices`**, **`promote_to_keep`** (recuperar un rechazado a `keep` actualizando precio). |
+| `notifier.py` | Gmail SMTP. `build_html()` arma tres secciones: novedades, **⬇️ bajada de precio** (precio anterior tachado → nuevo; marca "ahora dentro de tu presupuesto" si se recupera) y bajas. `notify(..., price_drops=None)`. Toda la config se lee de `config["email"]`. |
+| `config_inbox.py` | Extractor IMAP. Dos tipos de correo: **APLICAR** (`ALERTA WALLAPOP <nombre>` + YAML tras `----- config_x.yaml -----`) y **BORRAR** (`BORRAR WALLAPOP <nombre>` + nombres tras `----- ALERTAS A ELIMINAR -----`, o `TODAS`). Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
+| `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `sleep_hours`, `reply_confirmation` y **sección `llm`** (cascada, modelos por proveedor, claves y `cooldown_seconds`, comunes a todos los usuarios). **Nunca lo tocan los correos entrantes.** |
+| `configs/<user_id>.yaml` | Un config por usuario (ej. `dario.yaml`). El filtro de IA es un único `use_ai: true/false`; el orden/modelos del LLM viven en `bot_settings.yaml`. En la BD cada alerta va como `user_id/nombre`. |
 
 ### Principios de clasificación
 
@@ -79,6 +80,39 @@ Ante la duda (sin coordenadas del anuncio, sin `radius_km` definido): **dejar pa
 Función de distancia: `_haversine_km(lat1, lon1, lat2, lon2)` — devuelve `None`
 si algún dato falta.
 
+### Ventana de sueño (no buscar de madrugada)
+
+El bot **no hace nada** (ni busca en Wallapop ni revisa el buzón) durante una
+franja configurable. Por defecto, **01:00–07:00 hora de Madrid**.
+
+Configuración en `bot_settings.yaml`:
+```yaml
+sleep_hours:
+  enabled: true
+  start: 1                 # hora (en 'timezone') a la que empieza a dormir
+  end: 7                   # hora a la que despierta (NO incluida)
+  timezone: "Europe/Madrid"
+```
+
+- `start == end` o `enabled: false` → nunca duerme. Soporta franjas que cruzan
+  medianoche (p. ej. `start: 23`, `end: 7`).
+- La hora se calcula con `zoneinfo` (de ahí `tzdata` en `requirements.txt`, para
+  que funcione también en Windows). Si `zoneinfo` faltara, cae a la hora local
+  del sistema, que para una máquina en España o para Actions (`TZ=Europe/Madrid`)
+  ya es la correcta.
+- **Las ejecuciones manuales se saltan el sueño**: `python main.py --force`, o el
+  botón "Run workflow" de GitHub (define `GITHUB_EVENT_NAME=workflow_dispatch`).
+- Override por entorno: `SLEEP_HOURS_ENABLED=0/1`.
+
+**Doble control en GitHub Actions.** Como cada pasada es un proceso efímero, el
+horario se aplica en DOS sitios que deben mantenerse coherentes:
+1. `main.py` (in-process): `--once` sale sin hacer nada si toca dormir.
+2. `.github/workflows/wallabot.yml` (paso `gate`): calcula la hora de Madrid con
+   `TZ=Europe/Madrid date +%H` y **salta los pasos caros** (setup-python, pip
+   install, scraping, commit) durante el sueño, para no gastar minutos de Actions.
+   El cron sigue siendo horario; el gate decide. Las horas (1–7) están
+   *hardcodeadas* en el workflow porque no puede leer el YAML sin PyYAML instalado.
+
 ### Schema de un config de usuario (`configs/<user_id>.yaml`, v15)
 
 ```yaml
@@ -101,10 +135,8 @@ delivery:
   shipping: true     # con envío, distancia ignorada
   # nada marcado (ambos false) = sin filtro, equivale a ambos true
 
-classifier:
-  use_llm: true
-  model: "qwen2.5:3b"
-  on_unknown: "base"   # "drop" para menos ruido
+use_ai: true             # IA (cascada de LLM) sí/no. El ORDEN y los MODELOS
+                         # de la cascada viven en bot_settings.yaml (sección llm)
 
 alerts:
   - name: "Nombre descriptivo"
@@ -116,6 +148,31 @@ alerts:
 
 lote_bypass_price: true
 ```
+
+### Bajadas de precio y recuperación
+
+En cada ciclo, `process_alert()` guarda el precio de cada anuncio y lo compara
+con el último visto:
+- **Anuncio ya notificado que baja de precio** (cualquier bajada respecto al
+  último precio) → entra en la sección "⬇️ bajada de precio" del email; el
+  precio guardado se actualiza. Si sube, se actualiza la referencia sin avisar.
+- **Anuncio antes descartado por superar `max_price`** que ahora baja y entra en
+  presupuesto → se "recupera" (pasa a `keep`, se notifica con la etiqueta
+  "ahora dentro de tu presupuesto"). Solo si su categoría está en `want`.
+
+DB: `update_prices()` refresca precios; `promote_to_keep()` recupera rechazados.
+
+### Borrado de alertas por correo
+
+Además de aplicar configs, el buzón acepta órdenes de borrado:
+- Asunto `BORRAR WALLAPOP <nombre>`, cuerpo con `----- ALERTAS A ELIMINAR -----`
+  y un nombre de alerta por línea (o `TODAS`).
+- `config_inbox._apply_delete()` quita esas alertas del YAML del usuario (backup
+  + escritura atómica, preservando el resto). `TODAS` deja la lista vacía (en
+  pausa) sin borrar el archivo.
+- La pestaña **"Eliminar alertas"** del formulario genera ese correo. Las
+  confirmaciones del bot (aplicar y borrar) incluyen la lista de alertas activas,
+  copiable para pegarla en esa pestaña.
 
 ### Imports y rutas
 
@@ -192,6 +249,46 @@ novedades (decisión de Darío, jun 2026).
 
 ---
 
+## Administración de usuarios y alertas
+
+### Dar de alta un usuario (lo más sencillo)
+
+El cuello de botella es la **lista blanca** de `bot_settings.yaml`: un correo que
+no esté ahí se ignora. `manage.py` lo automatiza sin tocar el YAML a mano (con
+backup en `06_Backups/configs/` y preservando comentarios):
+
+```
+python 01_Core/manage.py add-user correo.de.marc@gmail.com marc
+python 01_Core/manage.py list                  # comprobar estado
+python 01_Core/manage.py remove-user marc       # baja (no borra config ni BD)
+```
+
+Flujo completo de alta:
+1. `add-user <correo> <user_id>` → autoriza ese correo.
+2. Esa persona genera su config en el formulario HTML y la envía a
+   `wallabot01@gmail.com` **desde ese correo**.
+3. El bot la detecta en el buzón (≤ `inbox_check_minutes`), la valida y escribe
+   `configs/<user_id>.yaml`. A partir de ahí recibe avisos.
+
+> El `user_id` decide el nombre del archivo (`configs/<user_id>.yaml`) y el
+> prefijo en la BD. Una persona puede tener **varios correos** apuntando al mismo
+> `user_id`. `add-user` es idempotente (no duplica un correo ya presente).
+
+### Eliminar una alerta activa
+
+No hay borrado "en caliente": una alerta es una entrada de la lista `alerts:` del
+config del usuario. Para quitarla:
+- **Editar** `configs/<user_id>.yaml` y borrar ese bloque `- name: ...`, **o**
+- **Regenerar** la config desde el formulario sin esa alerta y reenviarla (la
+  ingesta del buzón sobrescribe el config del usuario).
+
+Las filas que esa alerta dejó en `alerts.db` (`<user_id>/<nombre>`) quedan
+**huérfanas pero inofensivas**: ya no se consultan, no generan avisos ni errores.
+No se editan los configs por código a propósito: `dario.yaml` está muy comentado
+a mano y un `yaml.dump` se cargaría los comentarios.
+
+---
+
 ## Despliegue 24/7 (Railway) — DESCARTADO
 
 > Railway bloquea SMTP saliente salvo en plan Pro (20 $/mes): inviable
@@ -209,17 +306,20 @@ Modo cloud = variable `DATA_DIR` definida (en Railway: `/data`, un volumen):
 - Primer arranque con volumen vacío: `_bootstrap_data_dir()` (main.py) lo
   siembra con los configs del repo.
 
-Overrides por entorno (prioridad sobre los YAML): `GMAIL_APP_PASSWORD`,
-`ALLOWED_SENDERS` (`correo:uid,correo:uid`, se SUMAN a la lista blanca),
-`INBOX_CHECK_MINUTES`, `OLLAMA_HOST`, `TZ`, y para el clasificador LLM:
-`LLM_PROVIDER` (`ollama`|`groq`|`gemini`|`openai`), `LLM_MODEL`,
-`GROQ_API_KEY` / `GEMINI_API_KEY` / `LLM_API_KEY`+`LLM_BASE_URL`,
-`LLM_MIN_INTERVAL`.
+Overrides por entorno (prioridad sobre los YAML y sobre la sección `llm` de
+bot_settings.yaml): `GMAIL_APP_PASSWORD`, `ALLOWED_SENDERS`
+(`correo:uid,correo:uid`, se SUMAN a la lista blanca), `INBOX_CHECK_MINUTES`,
+`OLLAMA_HOST`, `TZ`, y para el clasificador LLM: `LLM_CASCADE` (orden de la
+cascada, p. ej. `groq,cerebras,gemini,openrouter,githubmodels,rules`),
+`LLM_PROVIDER` (compat: si no hay `LLM_CASCADE`, equivale a `<proveedor>,rules`),
+`LLM_MODEL`, `GROQ_API_KEY` / `CEREBRAS_API_KEY` / `GEMINI_API_KEY` /
+`OPENROUTER_API_KEY` / `GH_MODELS_TOKEN` / `LLM_API_KEY`+`LLM_BASE_URL`,
+`LLM_MIN_INTERVAL`, `LLM_COOLDOWN`, `SLEEP_HOURS_ENABLED`.
 
 Sin `DATA_DIR`, el comportamiento local es idéntico al de siempre. En
 Railway el LLM corre en la nube (`LLM_PROVIDER=groq` recomendado, capa
-gratuita; con proveedor cloud se ignora el `classifier.model` de los
-configs, que es un modelo de Ollama); sin proveedor/clave → reglas de
+gratuita; con proveedor cloud se ignora el modelo de Ollama de
+`bot_settings.yaml` (`llm.models.ollama`)); sin proveedor/clave → reglas de
 respaldo. Riesgo conocido: Wallapop podría limitar IPs de datacenter
 (vigilar 403/429 en logs). El repo DEBE ser privado (contiene la app
 password).
@@ -237,8 +337,10 @@ máquina efímera de GitHub: `config_inbox.py` (buzón) → `main.py --once`
 (`alerts.db` + `configs/`), que es como persiste entre ejecuciones. Sin
 cambios de backend: reutiliza `--once`, el modo standalone del inbox y
 los overrides por entorno (`GMAIL_APP_PASSWORD`, `GROQ_API_KEY`,
-`ALLOWED_SENDERS` como GitHub Secrets; `LLM_PROVIDER=groq` fijado en el
-workflow). `.gitignore` dejó de ignorar `alerts.db` a propósito.
+`GEMINI_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`, `GH_MODELS_TOKEN`,
+`ALLOWED_SENDERS` como GitHub Secrets; el orden de la cascada vive en
+`bot_settings.yaml`, no en el workflow). `.gitignore`
+dejó de ignorar `alerts.db` a propósito.
 
 Claves operativas: presupuesto 2.000 min/mes en repo privado (~1.450
 consumidos a cadencia horaria; si se agota, GitHub pausa Actions hasta el
@@ -246,8 +348,9 @@ mes siguiente); latencia real de avisos 30-90 min (cron de GitHub se
 retrasa en horas punta); pasada manual con "Run workflow" (Actions);
 NO ejecutar `main.py` en local con el workflow activo (BDs divergen);
 `workflow_dispatch` disponible; concurrencia serializada (grupo
-`wallabot`). Backups de configs en CI se pierden a propósito: el
-historial git ES el backup.
+`wallabot`). El paso `gate` salta las pasadas de 01:00–07:00 Madrid (ventana
+de sueño), ahorrando ~6 ejecuciones/día (~25% del consumo). Backups de configs
+en CI se pierden a propósito: el historial git ES el backup.
 
 ---
 
@@ -268,7 +371,7 @@ original de 440 KB era 100% autocontenido vía Parcel)
 | 1 — Tu correo | `recipient`: email donde llegan los avisos |
 | 2 — Zona y frecuencia | Intervalo de minutos · Accesos rápidos (Valencia, Tavernes, Palomares) · Buscador de municipios (OpenStreetMap/Nominatim) · Slider radio 0-50 km · Opciones de entrega (En persona / Con envío) |
 | 3 — Juegos | Lista dinámica: nombre, keywords, precio máx/mín, categorías `want`, exclusiones |
-| 4 — Filtro inteligente | LLM on/off, modelo, comportamiento `on_unknown` |
+| 4 — Filtro inteligente | Usar IA on/off (`use_ai`) |
 | Enviar a wallabot | Genera YAML y abre borrador en Gmail |
 
 ### Constantes fijas (no visibles en el formulario)
@@ -390,6 +493,7 @@ delivery:
 | `migrate_multiconfig.py` | One-shot idempotente: migró `config.yaml` → `configs/dario.yaml` y prefijó la BD con `dario/` (ejecutado jun 2026; la BD estaba vacía). |
 | `test_railway_paths.py` | Simula Railway en local (define `DATA_DIR` y overrides de entorno) y verifica rutas, siembra del volumen y lista blanca. Sin red. |
 | `test_llm_cloud.py` | Verifica sin red el adaptador LLM multi-proveedor (groq/gemini/ollama): endpoints, cabeceras, modelo efectivo, modo JSON, mapeo de mensajes a Gemini, parseo tolerante y reintento ante 429. |
+| `test_cascade.py` | Verifica sin red la **cascada**: que al fallar un proveedor se pasa al siguiente, que al agotarse cae en reglas (`unknown`), y que el circuit breaker saca de la rotación a un proveedor en cooldown. |
 
 ---
 
@@ -454,13 +558,20 @@ delivery:
 - **BD multi-usuario sin cambiar el schema**: el prefijo `user_id/` en
   `alert_name` separa lo visto por cada usuario; `database.py` no se tocó.
 
-- **LLM multi-proveedor tras una sola función**: todo el tráfico LLM pasa por
-  `classifier._ask()`, que despacha a Ollama (local, defecto), Groq, Gemini o
-  cualquier API OpenAI-compatible según `LLM_PROVIDER`. Con proveedor cloud
-  se ignora el modelo por-usuario del config (es un nombre de Ollama) y se
-  aplican throttle por proveedor y reintentos ante 429 para encajar en las
-  capas gratuitas. Groq usa modo `json_object` + instrucción con las claves
-  del schema; Gemini usa `responseSchema` nativo con los mismos schemas.
+- **LLM en cascada con circuit breaker tras una sola función**: todo el tráfico
+  LLM pasa por `classifier._ask()`, que recorre la cascada (`LLM_CASCADE` o
+  `bot_settings.yaml` → `llm.cascade`; por defecto
+  `groq,cerebras,gemini,openrouter,githubmodels,rules`) en orden hasta que un
+  proveedor responde. Si uno devuelve
+  429 sostenido entra en *cooldown* (`LLM_COOLDOWN`, 600 s) y se salta hasta que
+  expira; al agotarse la cascada (`rules`) se usa la red de seguridad de reglas
+  (`classify_category` → `unknown`, que `evaluate()` trata como `base`). Con
+  proveedor cloud se ignora el modelo de Ollama (definido a nivel bot) y se
+  aplican throttle por proveedor + reintentos ante 429. Groq y compatibles usan
+  modo `json_object` + instrucción con las claves del schema; Gemini usa
+  `responseSchema` nativo. El orden por defecto pone **Groq primero** y vive en
+  `bot_settings.yaml` (sección `llm`); la cascada y los proveedores están
+  cubiertos por `test_cascade.py`, `test_llm_cloud.py` y `test_new_providers.py`.
 
 - **Estado del bot versionado en git (patrón commit-back)**: para GitHub
   Actions, `alerts.db` y `configs/` viven en el propio repo y el workflow
