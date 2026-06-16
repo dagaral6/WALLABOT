@@ -19,6 +19,14 @@ El formulario HTML envia dos tipos de correo:
     -> quita esas alertas del config del usuario (backup + escritura atomica).
        "TODAS" deja el config con la lista vacia (en pausa), sin borrar el archivo.
 
+  AGREGAR (sumar alertas nuevas sin tocar el resto):
+    Asunto: "AÑADIR WALLAPOP <NOMBRE>"
+    Cuerpo: ----- config_<nombre>.yaml -----
+            alerts:
+              - <solo las alertas nuevas>
+    -> anyade esas alertas a las que ya tiene el usuario (backup + escritura
+       atomica), saltando las que ya existan con el mismo nombre.
+
 En ambos casos valida el remitente contra la lista blanca de bot_settings.yaml,
 marca el correo como leido y responde una confirmacion que SIEMPRE incluye la
 lista de alertas activas que quedan (copiable para usarla luego en la pestaña
@@ -65,6 +73,12 @@ DELETE_MARKER_RE = re.compile(
     r"^[ \t]*-{2,}\s*ALERTAS A ELIMINAR\s*-{2,}[ \t]*$", re.M | re.I)
 _ALL_TOKENS = {"todas", "todos", "all", "todas las alertas",
                "borrar todas", "*"}
+
+# --- agregar alertas (incremental) ---
+ADD_TOKEN = "AÑADIR WALLAPOP"
+# Substring ASCII para la busqueda IMAP. IMAP no busca bien caracteres no-ASCII
+# (la Ñ), pero "AÑADIR" contiene "ADIR", que es ASCII y unico entre los tokens.
+ADD_TOKEN_IMAP = "ADIR WALLAPOP"
 
 
 # ---------------------------------------------------------------- settings --
@@ -425,6 +439,137 @@ def _process_delete(M, num, settings, applied, dry_run,
              user_id, sender, removed or "ninguna")
 
 
+def _extract_added_alerts(body):
+    """De un correo AÑADIR, saca la lista de alertas del bloque YAML (que solo
+    contiene 'alerts:'). Recorta lineas finales (firmas) hasta que parsea.
+    Devuelve la lista o None."""
+    block = _extract_yaml_block(body)
+    if not block:
+        return None
+    lines = block.split("\n")
+    for _ in range(300):
+        chunk = "\n".join(lines).strip()
+        if chunk:
+            try:
+                data = yaml.safe_load(chunk)
+            except yaml.YAMLError:
+                data = None
+            if (isinstance(data, dict) and isinstance(data.get("alerts"), list)
+                    and data["alerts"]):
+                return data["alerts"]
+        while lines and not lines[-1].strip():
+            lines.pop()
+        if not lines:
+            break
+        lines.pop()
+    return None
+
+
+def _apply_add(user_id, new_alerts, dry_run=False):
+    """Agrega alertas al config del usuario SIN tocar el resto. Devuelve
+    (added, skipped, all_names). Si no existe el config -> (None, [], None)."""
+    target = os.path.join(CONFIGS_DIR, user_id + ".yaml")
+    if not os.path.exists(target):
+        return None, [], None
+    try:
+        with open(target, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as e:
+        log.error("No se pudo leer el config de '%s': %s", user_id, e)
+        return None, [], None
+
+    current = data.get("alerts") or []
+    have = {str(a.get("name", "")).strip().lower() for a in current
+            if isinstance(a, dict)}
+    added, skipped = [], []
+    for a in new_alerts:
+        if not isinstance(a, dict):
+            continue
+        nm = str(a.get("name", "")).strip()
+        if not nm or not str(a.get("keywords", "")).strip():
+            continue
+        if nm.lower() in have:
+            skipped.append(nm)
+            continue
+        current.append(a)
+        have.add(nm.lower())
+        added.append(nm)
+
+    all_names = [str(a.get("name", "?")) for a in current if isinstance(a, dict)]
+    if not added:
+        return [], skipped, all_names
+
+    data["alerts"] = current
+    if dry_run:
+        log.info("[dry-run] Se agregarian a '%s': %s", user_id, added)
+        return added, skipped, all_names
+
+    os.makedirs(BACKUPS_DIR, exist_ok=True)
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    backup = os.path.join(BACKUPS_DIR, "%s_%s.yaml" % (user_id, stamp))
+    shutil.copy2(target, backup)
+    log.info("Backup antes de agregar alertas de '%s' -> %s", user_id, backup)
+
+    header = (
+        "# Config de '%s' actualizada automaticamente (alertas agregadas).\n"
+        "# %s | Nuevas: %s\n\n"
+        % (user_id, time.strftime("%Y-%m-%d %H:%M:%S"), ", ".join(added))
+    )
+    text = yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
+                          default_flow_style=False)
+    tmp = target + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        f.write(header + text)
+    os.replace(tmp, target)
+    return added, skipped, all_names
+
+
+def _process_add(M, num, settings, applied, dry_run,
+                 user_id, sender, subject, bodies):
+    """Maneja 'AÑADIR WALLAPOP': suma alertas al config del usuario."""
+    new_alerts = None
+    for body in bodies:
+        new_alerts = _extract_added_alerts(body)
+        if new_alerts:
+            break
+    _mark_seen(M, num, dry_run)
+
+    if not new_alerts:
+        log.error("AGREGAR de %s sin alertas validas (asunto: '%s').",
+                  sender, subject)
+        _reply(settings, sender, "Re: " + subject,
+               "<div style='font-family:Arial'>No pude leer ninguna alerta que "
+               "añadir. Vuelve a generarlo desde la pestaña <b>Añadir alertas</b> "
+               "del formulario y envíalo sin editar el cuerpo.</div>", dry_run)
+        return
+
+    added, skipped, all_names = _apply_add(user_id, new_alerts, dry_run)
+    if added is None:
+        _reply(settings, sender, "Re: " + subject,
+               "<div style='font-family:Arial'>No encuentro tu configuración. "
+               "Crea primero una con la pestaña <b>Crear / editar</b> y luego ya "
+               "podrás añadir alertas.</div>", dry_run)
+        return
+
+    if added:
+        head = ("Añadida(s) %d alerta(s): %s."
+                % (len(added), html.escape(", ".join(added))))
+    else:
+        head = "No añadí ninguna alerta nueva."
+    sk = ("<p style='color:#b00;font-size:13px'>Ya las tenías (no las duplico): "
+          "%s</p>" % html.escape(", ".join(skipped))) if skipped else ""
+    body_html = ("<div style='font-family:Arial'>%s%s<br><br>%s</div>"
+                 % (head, sk,
+                    _active_alerts_html([{"name": n} for n in all_names])))
+    _reply(settings, sender, "Re: " + subject, body_html, dry_run)
+
+    if user_id in applied:
+        applied.remove(user_id)
+    applied.append(user_id)
+    log.info("Alertas agregadas a '%s' desde %s: %s",
+             user_id, sender, added or "ninguna")
+
+
 def _process_message(M, num, settings, applied, dry_run):
     typ, data = M.fetch(num, "(BODY.PEEK[])")
     if typ != "OK" or not data or data[0] is None:
@@ -435,7 +580,8 @@ def _process_message(M, num, settings, applied, dry_run):
     sender = parseaddr(msg.get("From") or "")[1].strip().lower()
     subj_up = subject.upper()
     is_delete = DELETE_TOKEN in subj_up
-    token = DELETE_TOKEN if is_delete else SUBJECT_TOKEN
+    is_add = (ADD_TOKEN in subj_up) or ("ANADIR WALLAPOP" in subj_up)
+    token = DELETE_TOKEN if is_delete else (ADD_TOKEN if is_add else SUBJECT_TOKEN)
     form_name = subj_up.replace(token, "").strip().title() or None
 
     user_id = settings["allowed_senders"].get(sender)
@@ -451,6 +597,11 @@ def _process_message(M, num, settings, applied, dry_run):
     if is_delete:
         _process_delete(M, num, settings, applied, dry_run,
                         user_id, sender, subject, bodies)
+        return
+
+    if is_add:
+        _process_add(M, num, settings, applied, dry_run,
+                     user_id, sender, subject, bodies)
         return
 
     # ---- APLICAR (crear / editar alertas) ----
@@ -512,7 +663,7 @@ def check_and_apply(settings=None, dry_run=False):
         M.login(user, pwd)
         M.select("INBOX")
         nums = []
-        for tok in (SUBJECT_TOKEN, DELETE_TOKEN):
+        for tok in (SUBJECT_TOKEN, DELETE_TOKEN, ADD_TOKEN_IMAP):
             typ, data = M.search(None, '(UNSEEN SUBJECT "%s")' % tok)
             if typ == "OK" and data and data[0]:
                 nums.extend(data[0].split())

@@ -187,7 +187,8 @@
   </div>
 
   <div class="tabs">
-    <button class="tab active" id="tabCreate" type="button">Crear / editar alertas</button>
+    <button class="tab active" id="tabCreate" type="button">Crear / editar</button>
+    <button class="tab" id="tabAdd" type="button">Añadir alertas</button>
     <button class="tab" id="tabDelete" type="button">Eliminar alertas</button>
   </div>
 
@@ -203,22 +204,8 @@
     </div>
 
     <div class="card">
-      <h2><span class="num">1</span> Tu correo</h2>
-      <p class="hint">Dónde quieres recibir los avisos de Wallapop.</p>
-      <label class="fld" style="margin:0">
-        <span>Email para recibir las alertas</span>
-        <input type="email" id="recipient" placeholder="tucorreo@gmail.com">
-      </label>
-    </div>
-
-    <div class="card">
-      <h2><span class="num">2</span> Zona y frecuencia</h2>
-      <p class="hint">Cada cuánto buscar y desde dónde medir la distancia.</p>
-
-      <label class="fld">
-        <span>Comprobar cada (minutos)</span>
-        <input type="number" id="interval" min="5" max="240" step="5" value="30" style="max-width:160px">
-      </label>
+      <h2><span class="num">1</span> Tu zona</h2>
+      <p class="hint">Desde dónde se mide la distancia para las entregas en persona.</p>
 
       <label class="fld" style="margin-bottom:6px"><span>Tu zona</span></label>
       <div class="chips" id="cityChips"></div>
@@ -252,7 +239,7 @@
     </div>
 
     <div class="card">
-      <h2><span class="num">3</span> Juegos a vigilar</h2>
+      <h2><span class="num">2</span> Juegos a vigilar</h2>
       <p class="hint">Una entrada por juego o grupo de palabras clave.</p>
       <div id="games"></div>
       <button class="add-btn" id="addGame" type="button">＋ Añadir juego</button>
@@ -284,6 +271,30 @@
       Se abrirá Gmail con el correo ya redactado. Solo tienes que pulsar <b>Enviar</b>.</p>
   </section>
 
+  <!-- ======================== PESTAÑA AÑADIR =========================== -->
+  <section id="viewAdd" class="hide">
+    <div class="card">
+      <h2>➕ Añadir alertas</h2>
+      <p class="hint">Define aquí las alertas <b>nuevas</b>. Se <b>suman</b> a las que ya tienes:
+        no se borra ni se cambia nada del resto de tu configuración. Para quitar alertas usa la
+        pestaña <b>Eliminar alertas</b>.</p>
+      <div id="addGames"></div>
+      <button class="add-btn" id="addAddGame" type="button">＋ Añadir juego</button>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>Ver el YAML que se enviará</summary>
+        <div class="yaml-box" id="addYamlPreview" style="margin-top:10px"></div>
+      </details>
+    </div>
+
+    <div id="addErrors"></div>
+    <button class="btn-primary" id="addSendBtn" type="button">✉️ Enviar alertas nuevas</button>
+    <p class="muted" style="text-align:center;margin-top:8px">
+      Se abrirá Gmail con el correo ya redactado. Solo tienes que pulsar <b>Enviar</b>.</p>
+  </section>
+
   <!-- ========================= PESTAÑA ELIMINAR ========================= -->
   <section id="viewDelete" class="hide">
     <div class="card">
@@ -310,7 +321,7 @@
     </div>
   </section>
 
-  <footer>wallabot · v17 · El remitente y la contraseña van ocultos en este formulario.</footer>
+  <footer>wallabot · v18 · El remitente y la contraseña van ocultos en este formulario.</footer>
 </div>
 
 <script>
@@ -320,6 +331,13 @@ const SENDER_EMAIL = "wallabot01@gmail.com";
 const SENDER_APP_PASSWORD = "zbmj kkzj cezy shkg";
 const BOT_INBOX = "wallabot01@gmail.com";   // a dónde se envía el correo (buzón del bot)
 const SMTP_HOST = "smtp.gmail.com", SMTP_PORT = 587;
+
+// Usuarios dados de alta (debe coincidir con allowed_senders de bot_settings.yaml).
+// Para añadir a alguien: añade aquí su entrada Y haz `manage.py add-user` en el bot.
+const USERS = [
+  { id: "dario", name: "Darío", email: "dariogarciaalvarez01@gmail.com" },
+  { id: "marc",  name: "Marc",  email: "marcferrando01@gmail.com" },
+];
 
 const CITIES = [
   { label: "Valencia", lat: 39.4699, lon: -0.3763 },
@@ -336,14 +354,15 @@ const DEFAULT_WANT = ["base", "lote"];
 
 /* ============================= Estado ==================================== */
 const state = {
+  who: "",
   name: "",
   recipient: "",
-  interval: 30,
   lat: CITIES[0].lat, lon: CITIES[0].lon, locLabel: CITIES[0].label,
   radius: 25,
   inPerson: true, shipping: true,
   useAi: true,
   games: [ newGame() ],
+  addGames: [ newGame() ],
 };
 function newGame(){ return { name:"", keywords:"", maxPrice:"", minPrice:"", want:["base","lote"], exclude:"" }; }
 
@@ -368,13 +387,15 @@ $("themeBtn").addEventListener("click", () => {
 
 /* ============================ Pestañas =================================== */
 function showTab(which){
-  const create = which === "create";
-  $("tabCreate").classList.toggle("active", create);
-  $("tabDelete").classList.toggle("active", !create);
-  $("viewCreate").classList.toggle("hide", !create);
-  $("viewDelete").classList.toggle("hide", create);
+  $("tabCreate").classList.toggle("active", which === "create");
+  $("tabAdd").classList.toggle("active", which === "add");
+  $("tabDelete").classList.toggle("active", which === "delete");
+  $("viewCreate").classList.toggle("hide", which !== "create");
+  $("viewAdd").classList.toggle("hide", which !== "add");
+  $("viewDelete").classList.toggle("hide", which !== "delete");
 }
 $("tabCreate").addEventListener("click", () => showTab("create"));
+$("tabAdd").addEventListener("click", () => showTab("add"));
 $("tabDelete").addEventListener("click", () => showTab("delete"));
 
 /* ===================== Utilidades de YAML ================================ */
@@ -394,8 +415,6 @@ function buildYAML(s){
   L.push("  app_password: " + q(SENDER_APP_PASSWORD));
   L.push("  recipient: " + q(s.recipient));
   L.push("");
-  L.push("check_interval_minutes: " + (Number(s.interval) || 30));
-  L.push("");
   L.push("location:");
   L.push("  latitude: " + s.lat);
   L.push("  longitude: " + s.lon);
@@ -407,9 +426,18 @@ function buildYAML(s){
   L.push("");
   L.push("use_ai: " + (s.useAi ? "true" : "false"));
   L.push("");
-  L.push("alerts:");
-  for (const g of s.games){
+  L.push(buildAlertsYAML(s.games) || "alerts: []");
+  L.push("");
+  L.push("lote_bypass_price: true");
+  return L.join("\n");
+}
+
+function buildAlertsYAML(games){
+  const L = ["alerts:"];
+  let any = false;
+  for (const g of games){
     if (!g.name.trim() && !g.keywords.trim()) continue;
+    any = true;
     L.push("  - name: " + q(g.name));
     L.push("    keywords: " + q(g.keywords));
     if (g.maxPrice !== "" && g.maxPrice != null) L.push("    max_price: " + Number(g.maxPrice));
@@ -421,9 +449,7 @@ function buildYAML(s){
                  .map(x => x.trim()).filter(Boolean);
     if (ex.length) L.push("    exclude: [" + ex.map(q).join(", ") + "]");
   }
-  L.push("");
-  L.push("lote_bypass_price: true");
-  return L.join("\n");
+  return any ? L.join("\n") : "";
 }
 
 /* --- Parser mínimo de YAML para nuestro esquema (carga de config) -------- */
@@ -530,7 +556,6 @@ function stateFromConfig(cfg){
   if (!cfg || typeof cfg !== "object") throw new Error("estructura");
   const em = cfg.email || {};
   if (em.recipient) state.recipient = String(em.recipient);
-  if (cfg.check_interval_minutes != null) state.interval = Number(cfg.check_interval_minutes) || 30;
   const loc = cfg.location || {};
   if (loc.latitude != null && loc.longitude != null){
     state.lat = Number(loc.latitude); state.lon = Number(loc.longitude);
@@ -568,9 +593,9 @@ function renderCities(){
 }
 function near(a, b){ return Math.abs(state.lat - a) < 1e-4 && Math.abs(state.lon - b) < 1e-4; }
 
-function renderGames(){
-  const box = $("games"); box.innerHTML = "";
-  state.games.forEach((g, i) => {
+function renderGameCards(boxId, games, afterChange){
+  const box = $(boxId); box.innerHTML = "";
+  games.forEach((g, i) => {
     const card = document.createElement("div");
     card.className = "game";
     const cats = CATS.map(c => {
@@ -581,7 +606,7 @@ function renderGames(){
       <div class="game-head">
         <span class="gi">${i + 1}</span>
         <span class="gt">${g.name ? esc(g.name) : "Juego nuevo"}</span>
-        ${state.games.length > 1 ? `<button class="x-btn" data-del="${i}" title="Quitar">×</button>` : ""}
+        ${games.length > 1 ? `<button class="x-btn" data-del="${i}" title="Quitar">×</button>` : ""}
       </div>
       <label class="fld"><span>Nombre (para el email)</span>
         <input type="text" data-i="${i}" data-k="name" value="${esc(g.name)}" placeholder="Catan (base, hasta 25€)"></label>
@@ -604,46 +629,52 @@ function renderGames(){
   box.querySelectorAll("input").forEach(inp => {
     inp.addEventListener("input", () => {
       const i = +inp.dataset.i, k = inp.dataset.k;
-      state.games[i][k] = inp.value;
+      games[i][k] = inp.value;
       if (k === "name") { const gt = inp.closest(".game").querySelector(".gt"); gt.textContent = inp.value || "Juego nuevo"; }
-      updateYaml();
+      afterChange();
     });
   });
   box.querySelectorAll(".cat").forEach(el => {
     el.addEventListener("click", () => {
-      const i = +el.dataset.i, cat = el.dataset.cat, w = state.games[i].want || (state.games[i].want = []);
+      const i = +el.dataset.i, cat = el.dataset.cat, w = games[i].want || (games[i].want = []);
       const at = w.indexOf(cat);
       if (at >= 0) w.splice(at, 1); else w.push(cat);
-      el.classList.toggle("sel"); updateYaml();
+      el.classList.toggle("sel"); afterChange();
     });
   });
   box.querySelectorAll("[data-del]").forEach(b => {
-    b.addEventListener("click", () => { state.games.splice(+b.dataset.del, 1); renderGames(); updateYaml(); });
+    b.addEventListener("click", () => { games.splice(+b.dataset.del, 1); renderGameCards(boxId, games, afterChange); afterChange(); });
   });
 }
+function renderGames(){ renderGameCards("games", state.games, updateYaml); }
+function renderAddGames(){ renderGameCards("addGames", state.addGames, updateAddYaml); }
 
 function render(){
-  $("name").value = state.name;
-  $("recipient").value = state.recipient;
-  $("interval").value = state.interval;
+  $("who").value = state.who;
   $("radius").value = state.radius; $("radiusVal").textContent = state.radius + " km";
   $("inPerson").checked = state.inPerson; $("shipping").checked = state.shipping;
   $("useAi").checked = state.useAi;
   $("locLabel").textContent = "📍 " + state.locLabel + "  (" + state.lat.toFixed(4) + ", " + state.lon.toFixed(4) + ")";
-  renderCities(); renderGames(); updateYaml();
+  renderCities(); renderGames(); renderAddGames(); updateYaml(); updateAddYaml();
 }
 function updateYaml(){ $("yamlPreview").textContent = buildYAML(state); }
+function updateAddYaml(){ $("addYamlPreview").textContent = buildAlertsYAML(state.addGames) || "alerts: []"; }
 function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 
 /* ====================== Listeners de campos ============================== */
-$("name").addEventListener("input", e => state.name = e.target.value);
-$("recipient").addEventListener("input", e => { state.recipient = e.target.value; updateYaml(); });
-$("interval").addEventListener("input", e => { state.interval = e.target.value; updateYaml(); });
+$("who").addEventListener("change", e => {
+  state.who = e.target.value;
+  const u = USERS.find(x => x.id === state.who);
+  state.name = u ? u.name : "";
+  state.recipient = u ? u.email : "";
+  updateYaml(); updateAddYaml();
+});
 $("radius").addEventListener("input", e => { state.radius = +e.target.value; $("radiusVal").textContent = state.radius + " km"; updateYaml(); });
 $("inPerson").addEventListener("change", e => { state.inPerson = e.target.checked; updateYaml(); });
 $("shipping").addEventListener("change", e => { state.shipping = e.target.checked; updateYaml(); });
 $("useAi").addEventListener("change", e => { state.useAi = e.target.checked; updateYaml(); });
 $("addGame").addEventListener("click", () => { state.games.push(newGame()); renderGames(); updateYaml(); });
+$("addAddGame").addEventListener("click", () => { state.addGames.push(newGame()); renderAddGames(); updateAddYaml(); });
 
 /* ====================== Buscador de municipios =========================== */
 let muniTimer = null;
@@ -699,8 +730,7 @@ $("cfgFile").addEventListener("change", e => {
 /* ====================== Validación + envío (crear) ======================= */
 function validateCreate(){
   const e = [];
-  if (!state.name.trim()) e.push("Pon tu nombre arriba (identifica tus correos).");
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(state.recipient.trim())) e.push("Email para recibir alertas no válido.");
+  if (!state.who) e.push("Selecciona quién eres arriba.");
   const games = state.games.filter(g => g.name.trim() || g.keywords.trim());
   if (!games.length) e.push("Añade al menos un juego con nombre y palabras clave.");
   games.forEach((g, i) => {
@@ -781,8 +811,8 @@ $("delFile").addEventListener("change", e => {
 });
 $("delSendBtn").addEventListener("click", () => {
   const box = $("delErrors"); box.innerHTML = "";
-  if (!state.name.trim()){
-    box.innerHTML = '<div class="errors">Pon tu nombre arriba (debe coincidir con el de tus alertas).</div>';
+  if (!state.who){
+    box.innerHTML = '<div class="errors">Selecciona quién eres arriba.</div>';
     return;
   }
   const allChecked = $("delAll") && $("delAll").checked;
@@ -797,6 +827,32 @@ $("delSendBtn").addEventListener("click", () => {
     "Eliminar alertas de " + state.name.trim() + ".\n\n" +
     "----- ALERTAS A ELIMINAR -----\n" +
     (allChecked ? "TODAS" : chosen.join("\n"));
+  gmail(subject, body);
+});
+
+/* ====================== Validación + envío (añadir) ====================== */
+$("addSendBtn").addEventListener("click", () => {
+  const box = $("addErrors"); box.innerHTML = "";
+  const errs = [];
+  if (!state.who) errs.push("Selecciona quién eres arriba.");
+  const games = state.addGames.filter(g => g.name.trim() || g.keywords.trim());
+  if (!games.length) errs.push("Añade al menos un juego con nombre y palabras clave.");
+  games.forEach((g, i) => {
+    if (!g.name.trim()) errs.push("Juego " + (i + 1) + ": falta el nombre.");
+    if (!g.keywords.trim()) errs.push("Juego " + (i + 1) + ": faltan las palabras clave.");
+  });
+  if (errs.length){
+    box.innerHTML = '<div class="errors"><b>Revisa esto:</b><ul>' + errs.map(x => "<li>" + esc(x) + "</li>").join("") + "</ul></div>";
+    box.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
+  }
+  const yaml = buildAlertsYAML(state.addGames);
+  const subject = "AÑADIR WALLAPOP " + state.name.trim();
+  const body =
+    "Añadir alertas a la configuración de " + state.name.trim() + ".\n" +
+    "Estas alertas se SUMAN a las que ya tienes (no se borra ni cambia nada del resto).\n" +
+    "Juegos: " + games.map(g => g.name.trim()).join(", ") + "\n\n" +
+    "----- config_" + slugify(state.name) + ".yaml -----\n" + yaml;
   gmail(subject, body);
 });
 
