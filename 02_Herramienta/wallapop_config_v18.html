@@ -184,6 +184,16 @@
         <option value="marc">Marc</option>
       </select>
     </label>
+    <label class="fld" id="whoEmailWrap" style="margin:10px 0 0;display:none">
+      <span>Correo donde llegan los avisos (puedes editarlo)</span>
+      <input type="email" id="whoEmail" placeholder="correo@gmail.com"
+             autocomplete="off" spellcheck="false">
+      <p class="muted" id="whoEmailNote" style="margin:6px 0 0;display:none">
+        ✏️ Has cambiado el correo. Se recuerda en <b>esta copia</b> del
+        formulario. Avisa a Darío para que lo cambie también en la versión
+        oficial (array <code>USERS</code> del HTML).
+      </p>
+    </label>
   </div>
 
   <div class="tabs">
@@ -338,6 +348,29 @@ const USERS = [
   { id: "dario", name: "Darío", email: "dariogarciaalvarez01@gmail.com" },
   { id: "marc",  name: "Marc",  email: "marcferrando01@gmail.com" },
 ];
+
+// Overrides de correo guardados SOLO en esta copia del HTML (localStorage).
+// Permiten editar el correo de un usuario en el formulario sin tocar el código;
+// el cambio "oficial" sigue siendo el array USERS de arriba.
+const EMAIL_OVERRIDE_KEY = "wallabot_email_overrides";
+function loadEmailOverrides(){
+  try { return JSON.parse(localStorage.getItem(EMAIL_OVERRIDE_KEY)) || {}; }
+  catch (e) { return {}; }
+}
+function saveEmailOverride(userId, email){
+  if (!userId) return;
+  const ov = loadEmailOverrides();
+  const def = (USERS.find(u => u.id === userId) || {}).email || "";
+  if (!email || email === def) { delete ov[userId]; }   // volver al valor oficial
+  else { ov[userId] = email; }
+  try { localStorage.setItem(EMAIL_OVERRIDE_KEY, JSON.stringify(ov)); } catch (e) {}
+}
+// Correo efectivo de un usuario: override de esta copia si existe, si no el oficial.
+function emailFor(userId){
+  const ov = loadEmailOverrides();
+  if (ov[userId]) return ov[userId];
+  return (USERS.find(u => u.id === userId) || {}).email || "";
+}
 
 const CITIES = [
   { label: "Valencia", lat: 39.4699, lon: -0.3763 },
@@ -651,6 +684,7 @@ function renderAddGames(){ renderGameCards("addGames", state.addGames, updateAdd
 
 function render(){
   $("who").value = state.who;
+  if (typeof syncWhoEmailUI === "function") syncWhoEmailUI();
   $("radius").value = state.radius; $("radiusVal").textContent = state.radius + " km";
   $("inPerson").checked = state.inPerson; $("shipping").checked = state.shipping;
   $("useAi").checked = state.useAi;
@@ -666,7 +700,31 @@ $("who").addEventListener("change", e => {
   state.who = e.target.value;
   const u = USERS.find(x => x.id === state.who);
   state.name = u ? u.name : "";
-  state.recipient = u ? u.email : "";
+  state.recipient = state.who ? emailFor(state.who) : "";
+  syncWhoEmailUI();
+  updateYaml(); updateAddYaml();
+});
+
+// Muestra/oculta el campo de correo editable y refleja el correo efectivo del
+// usuario elegido (override de esta copia si lo hay).
+function syncWhoEmailUI(){
+  const wrap = $("whoEmailWrap"), input = $("whoEmail"), note = $("whoEmailNote");
+  if (!wrap) return;
+  if (!state.who){ wrap.style.display = "none"; if (note) note.style.display = "none"; return; }
+  wrap.style.display = "block";
+  if (input) input.value = state.recipient || "";
+  const def = (USERS.find(u => u.id === state.who) || {}).email || "";
+  if (note) note.style.display = (state.recipient && state.recipient !== def) ? "block" : "none";
+}
+
+// Editar el correo: actualiza el destinatario, lo recuerda en esta copia y avisa.
+$("whoEmail").addEventListener("input", e => {
+  const val = e.target.value.trim();
+  state.recipient = val;
+  if (state.who) saveEmailOverride(state.who, val);
+  const def = (USERS.find(u => u.id === state.who) || {}).email || "";
+  const note = $("whoEmailNote");
+  if (note) note.style.display = (val && val !== def) ? "block" : "none";
   updateYaml(); updateAddYaml();
 });
 $("radius").addEventListener("input", e => { state.radius = +e.target.value; $("radiusVal").textContent = state.radius + " km"; updateYaml(); });

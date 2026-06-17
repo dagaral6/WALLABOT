@@ -95,14 +95,18 @@ check("groq: instruccion final con las claves del schema",
       c["json"]["messages"][-1]["role"] == "system"
       and "is_board_game" in c["json"]["messages"][-1]["content"])
 
-# Reintento ante 429 (con retry-after) y exito al segundo intento.
+# 429 abre el circuit breaker (no se reintenta). Con cascada [groq, rules],
+# si groq devuelve 429, el breaker se abre y la cascada cae a rules (seguridad):
+os.environ["LLM_CASCADE"] = "groq,rules"
+os.environ["GROQ_API_KEY"] = "test-key"
+importlib.reload(classifier)
 classifier.requests.post = fake_post_factory([
-    FakeResp(429, {}, {"retry-after": "0"}),
-    FakeResp(200, groq_body),
+    FakeResp(429, {}, {}),  # groq: 429 abre breaker -> cascada salta a rules
 ])
 cat = classifier.classify_category(
     "Catan Navegantes", "Solo la expansion.", use_llm=True, model="x")
-check("groq: reintenta tras HTTP 429", cat == "expansion", cat)
+check("groq: 429 abre breaker -> cascada cae a rules (unknown)",
+      cat == "unknown", cat)
 
 classifier.requests.get = lambda *a, **k: FakeResp(200)
 ok, desc = classifier.llm_available()

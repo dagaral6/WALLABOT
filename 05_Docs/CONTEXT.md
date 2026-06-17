@@ -253,6 +253,9 @@ novedades (decisión de Darío, jun 2026).
 
 ### Dar de alta un usuario (lo más sencillo)
 
+> Procedimiento completo (alta, modificar un alta, baja) en
+> `05_Docs/ALTA_USUARIOS.md`.
+
 El cuello de botella es la **lista blanca** de `bot_settings.yaml`: un correo que
 no esté ahí se ignora. `manage.py` lo automatiza sin tocar el YAML a mano (con
 backup en `06_Backups/configs/` y preservando comentarios):
@@ -367,8 +370,8 @@ original de 440 KB era 100% autocontenido vía Parcel)
 
 | Sección | Contenido |
 |---|---|
+| Identidad | Desplegable `<select id="who">` (usuarios del array `USERS`): elige el nombre y rellena el `recipient`. El correo se muestra en un campo **editable**; si lo cambias, se guarda en esa copia del HTML (`localStorage`, clave `wallabot_email_overrides`) y avisa de cambiarlo también en el `USERS` oficial |
 | Cargar | Cargar un `config.yaml` existente para editar |
-| 1 — Tu correo | `recipient`: email donde llegan los avisos |
 | 2 — Zona y frecuencia | Intervalo de minutos · Accesos rápidos (Valencia, Tavernes, Palomares) · Buscador de municipios (OpenStreetMap/Nominatim) · Slider radio 0-50 km · Opciones de entrega (En persona / Con envío) |
 | 3 — Juegos | Lista dinámica: nombre, keywords, precio máx/mín, categorías `want`, exclusiones |
 | 4 — Filtro inteligente | Usar IA on/off (`use_ai`) |

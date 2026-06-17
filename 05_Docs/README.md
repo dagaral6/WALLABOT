@@ -151,6 +151,9 @@ python3 config_inbox.py --dry-run  # solo mira, no toca nada
 ```
 
 ## Dar de alta usuarios (y quitar alertas)
+> Guía detallada paso a paso (alta, modificar un alta y baja) en
+> **`05_Docs/ALTA_USUARIOS.md`**. Resumen rápido abajo.
+
 Para que alguien reciba avisos, su correo debe estar en la lista blanca de
 `bot_settings.yaml`. `manage.py` lo gestiona sin editar el YAML a mano (con
 backup y sin romper los comentarios). **Desde `01_Core`:**
@@ -168,15 +171,33 @@ python3 manage.py remove-user marc
 
 Alta completa, paso a paso:
 1. `add-user <correo> <user_id>` autoriza ese correo.
-2. Esa persona rellena el formulario y lo envía a `wallabot01@gmail.com`
+2. (Opcional pero recomendado) añade el usuario al array `USERS` y una
+   `<option>` al `<select id="who">` de `02_Herramienta/wallapop_config_v18.html`
+   para que pueda elegir su nombre en el desplegable.
+3. Esa persona rellena el formulario y lo envía a `wallabot01@gmail.com`
    **desde ese correo**.
-3. El bot la detecta (≤ 5 min), valida y crea `configs/<user_id>.yaml`.
+4. El bot la detecta (≤ 5 min), valida y crea `configs/<user_id>.yaml`.
 
 **Eliminar una alerta activa:** una alerta es una entrada de la lista `alerts:`
 del config. Para quitarla, edita `configs/<user_id>.yaml` y borra ese bloque
 `- name: ...`, o regenera la config en el formulario sin esa alerta y reenvíala
 (la del buzón sustituye a la anterior). Lo que esa alerta dejó en `alerts.db`
 queda huérfano pero es inofensivo (ya no se consulta).
+
+### Resumen de alertas activas (dónde sale)
+Cada vez que el bot **aplica, añade o borra** alertas desde un correo del
+formulario, responde al remitente con una confirmación que **siempre** incluye
+la **lista completa de alertas activas** de ESE usuario (no solo la que acabas
+de tocar), con un bloque copiable (una por línea) listo para pegar en la pestaña
+**Eliminar alertas**. Lo controla `reply_confirmation: true` en
+`bot_settings.yaml`.
+
+> OJO: este resumen va en los **correos de confirmación** (respuesta a tu envío
+> del formulario), **no** en los correos de **aviso de anuncios** (los que
+> llegan cuando aparece algo en Wallapop). Si no lo ves: 1) revisa que miras la
+> confirmación y no un aviso; 2) que `reply_confirmation` esté en `true`;
+> 3) que el envío llegara desde un correo de la lista blanca (si no, se ignora);
+> 4) la carpeta de Spam de Gmail.
 
 ## Horario de sueño (descanso nocturno)
 Por defecto el bot **no hace nada de 01:00 a 07:00 (hora de Madrid)**: ni busca
