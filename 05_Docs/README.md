@@ -54,8 +54,11 @@ pip install -r requirements.txt
 > `githubmodels,rules` (gana el primero que responde; `rules` es el último
 > recurso, sin IA). Solo necesitas la clave de los proveedores que uses
 > (`GROQ_API_KEY`, `CEREBRAS_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
-> `GH_MODELS_TOKEN`). Un 429 sostenido manda al proveedor a cooldown y se salta
-> solo. En GitHub Actions ya va configurado. Detalles en
+> `GH_MODELS_TOKEN`). La cascada es **fail-fast**: un 429 pasa al siguiente
+> proveedor sin esperar ni reintentar (los 5xx sí tienen un reintento corto),
+> y un 429 sostenido manda al proveedor a cooldown. En GitHub Actions ya va
+> configurado. **Cerebras está roto actualmente** (clave inválida) y cae al
+> siguiente proveedor de la cascada sin afectar al resto. Detalles en
 > `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
 
 ## Configuración
@@ -130,18 +133,25 @@ python3 main.py --once --force
 > workflow activo (verías avisos duplicados).
 
 ## Configs por correo (automático)
-El botón "Enviar a wallabot" del formulario abre un borrador de Gmail a
-`wallabot01@gmail.com`. El bot revisa ese buzón cada 5 minutos
+El formulario tiene tres pestañas que abren un borrador de Gmail a
+`wallabot01@gmail.com` según la operación: **Crear/editar** (reemplaza el
+config completo, asunto `ALERTA WALLAPOP <nombre>`), **Añadir alertas**
+(fusiona alertas nuevas con el config existente sin tocar el resto, asunto
+`AÑADIR WALLAPOP <nombre>`) y **Eliminar alertas** (asunto
+`BORRAR WALLAPOP <nombre>`). El bot revisa ese buzón cada 5 minutos
 (`bot_settings.yaml` → `inbox_check_minutes`):
 
 - Solo acepta remitentes de la **lista blanca**: `bot_settings.yaml` →
   `allowed_senders` (mapa `correo → user_id`). Dar de alta a alguien es solo
   añadirlo ahí ANTES de que envíe su formulario; lo más cómodo es
   `python3 manage.py add-user <correo> <user_id>` (ver "Dar de alta usuarios").
-- Hace **backup** del config anterior en `06_Backups/configs/`, aplica el
-  nuevo en `configs/<user_id>.yaml` y responde "Configuración aplicada ✓"
-  al remitente.
-- Si llegan varios correos del mismo usuario, **gana el más reciente**.
+- Hace **backup** del config anterior en `06_Backups/configs/` antes de
+  aplicar, añadir o borrar, y responde con una confirmación al remitente.
+- **Añadir** requiere que el usuario ya tenga un config existente; si no,
+  el bot responde pidiendo crear uno primero con "Crear/editar". Las
+  alertas nuevas se deduplican por nombre (en minúsculas) frente a las que
+  ya tenía.
+- Si llegan varios correos del mismo tipo y usuario, **gana el más reciente**.
 - Un remitente fuera de la lista se ignora (queda registrado en el log).
 
 Pasada manual sin esperar al bot:
@@ -249,6 +259,9 @@ python3 test_new_providers.py
 
 # Test de bajadas de precio y recuperación de descartados. Sin red.
 python3 test_price_drops.py
+
+# Test del comando AÑADIR (fusión incremental de alertas por correo). Sin red.
+python3 test_add_alerts.py
 ```
 
 ## Cómo se decide cada anuncio (árbol de decisión)
@@ -347,3 +360,12 @@ La BD guarda lo ya decidido con la lógica anterior. Si cambias `keywords`,
 `alerts.db` y vuelve a ejecutar (con `--seed` si no quieres el aluvión
 inicial). Ojo: la BD es compartida — borrarla resetea lo visto de **todos**
 los usuarios.
+
+## ⚠️ En diseño (aún no implementado): mejora del clasificador
+Hay un rediseño en curso de la distinción base/expansión/componentes/lote
+para corregir dos fallos conocidos: anuncios de un solo juego que se marcan
+como lote por culpa del spam de tags, y anuncios de un solo producto (p.ej.
+miniaturas) que se marcan como lote por mencionar varias expansiones de un
+mismo juego. La especificación completa (reglas primero, LLM como
+verificación) está en `05_Docs/CONTEXT.md`, sección "Diseño en curso". Nada
+de esto afecta al comportamiento actual descrito arriba.

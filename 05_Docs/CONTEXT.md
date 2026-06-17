@@ -21,8 +21,8 @@ Tiene dos partes:
 | Carpeta | Contenido |
 |---|---|
 | `01_Core/` | Backend Python: `main.py`, `manage.py` (admin CLI), `scraper.py`, `classifier.py`, `notifier.py`, `database.py`, `config_inbox.py`, `bot_settings.yaml`, `configs/` (un YAML por usuario), `alerts.db`, `requirements.txt` |
-| `02_Herramienta/` | Configurador HTML autocontenido (`wallapop_config_v17.html`, vanilla JS, sin build); zip del fuente React antiguo y `wallapop_config_v15.html` (histórico) |
-| `03_Diagnostico/` | Scripts de diagnóstico y tests: `diagnostico.py`, `check_db.py`, `probe_api.py`, `probe_catan.py`, `probe_inis.py`, `verify_fix.py`, `migrate_multiconfig.py`, y tests sin red `test_delivery.py`, `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_price_drops.py` |
+| `02_Herramienta/` | Configurador HTML autocontenido (`wallapop_config_v18.html`, vanilla JS, sin build); versiones anteriores (`wallapop_config_v15.html`, `wallapop_config_v17.html`) y zip del fuente React antiguo (histórico) |
+| `03_Diagnostico/` | Scripts de diagnóstico y tests: `diagnostico.py`, `check_db.py`, `probe_api.py`, `probe_catan.py`, `probe_inis.py`, `verify_fix.py`, `migrate_multiconfig.py`, y tests sin red `test_delivery.py`, `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_price_drops.py`, `test_add_alerts.py` |
 | `04_Logs/` | `raw_wallapop_response.json`, `output.txt` |
 | `05_Docs/` | `CONTEXT.md`, `README.md`, `DEPLOY_GITHUB_ACTIONS.md`, `DEPLOY_RAILWAY.md` |
 | `06_Backups/` | Copias de seguridad de versiones anteriores |
@@ -42,10 +42,10 @@ Tiene dos partes:
 | `main.py` | Orquestador y scheduler **multi-config**: tick de 60 s, cada usuario corre según su `check_interval_minutes`; comprueba el buzón y recarga configs al vuelo. **Ventana de sueño** (`_is_sleeping()`, `_sleep_config()`, `_now_hour()`). Al arrancar llama a `classifier.configure_from_settings()` (cascada/modelos/claves desde `bot_settings.yaml`). `process_alert()` detecta **novedades**, **bajadas de precio** y **recuperación** de anuncios antes descartados por caros, y bajas. Funciones: `evaluate()`, `process_alert(user_id, ...)`, `run_cycle()`, `load_all_configs()`, `_check_inbox()`, `_use_ai()`, `_price_ok()`, `_delivery_ok()`, `_haversine_km()`, `_hard_excluded()`. Flags `--seed`, `--once`, `--force`. |
 | `manage.py` | **Administración por CLI** sin editar YAML a mano. `list`, `add-user <correo> <user_id>` (backup + idempotente), `remove-user <correo|user_id>`. No toca configs ni BD al quitar un usuario. |
 | `scraper.py` | Búsqueda en la API de Wallapop con paginación completa via `meta.next_page`. Parámetros: `max_items=500`, `max_pages=10`, `page_pause=2s`, `retries=3`. `_normalize_item()` devuelve `id`, `title`, `description`, `price`, `url`, `image`, **`is_shippable`**, **`lat`**, **`lon`**. |
-| `classifier.py` | Híbrido regex + LLM en **cascada con circuit breaker**. Orden por defecto `groq,cerebras,gemini,openrouter,githubmodels,rules` (configurable en `bot_settings.yaml` → `llm.cascade` o por `LLM_CASCADE`). `_ask()` recorre los proveedores hasta que uno responde; un 429 sostenido manda al proveedor a *cooldown* (`LLM_COOLDOWN`/`llm.cooldown_seconds`, 600 s); `rules` es el terminal. Proveedores OpenAI-compatibles (`_OPENAI_COMPAT_BASE`): `groq`, `cerebras`, `openrouter`, `githubmodels` y `openai` (LLM_BASE_URL); más `gemini` (ruta propia) y `ollama` (local). `configure_from_settings()` aplica modelos/claves/orden del YAML (la env-var SIEMPRE manda); `get_ollama_model()` da el modelo local. Categorías: `base`, `expansion`, `components`, `lote`, `not_game`, `unknown`. |
+| `classifier.py` | Híbrido regex + LLM en **cascada con circuit breaker, fail-fast**. Orden por defecto `groq,cerebras,gemini,openrouter,githubmodels,rules` (configurable en `bot_settings.yaml` → `llm.cascade` o por `LLM_CASCADE`). `_ask()` recorre los proveedores hasta que uno responde; `_post_with_retry()` es **fail-fast**: un 429 manda inmediatamente al proveedor a *cooldown* y pasa al siguiente **sin esperar ni reintentar**; un 5xx solo da **un reintento corto**. Cooldown 600 s (`LLM_COOLDOWN`/`llm.cooldown_seconds`); `rules` es el terminal. Proveedores OpenAI-compatibles (`_OPENAI_COMPAT_BASE`): `groq`, `cerebras`, `openrouter`, `githubmodels` y `openai` (LLM_BASE_URL); más `gemini` (ruta propia) y `ollama` (local). `configure_from_settings()` aplica modelos/claves/orden del YAML (la env-var SIEMPRE manda); `get_ollama_model()` da el modelo local. Categorías: `base`, `expansion`, `components`, `lote`, `not_game`, `unknown`. **Cerebras roto** (jun 2026): 404 en Actions (API key inválida) y fallo de certificado SSL en Windows local; modelo (`llama-3.3-70b`) y endpoint confirmados correctos, el problema es la clave en sí — pendiente de resolver. |
 | `database.py` | SQLite (`alerts.db`, tabla `seen_items`). Guarda categoría **y precio** por anuncio. Funciones: `get_known_ids`, `get_kept_rows`, **`get_rejected_rows`**, `add_items`, `delete_items`, **`update_prices`**, **`promote_to_keep`** (recuperar un rechazado a `keep` actualizando precio). |
 | `notifier.py` | Gmail SMTP. `build_html()` arma tres secciones: novedades, **⬇️ bajada de precio** (precio anterior tachado → nuevo; marca "ahora dentro de tu presupuesto" si se recupera) y bajas. `notify(..., price_drops=None)`. Toda la config se lee de `config["email"]`. |
-| `config_inbox.py` | Extractor IMAP. Dos tipos de correo: **APLICAR** (`ALERTA WALLAPOP <nombre>` + YAML tras `----- config_x.yaml -----`) y **BORRAR** (`BORRAR WALLAPOP <nombre>` + nombres tras `----- ALERTAS A ELIMINAR -----`, o `TODAS`). Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
+| `config_inbox.py` | Extractor IMAP. Tres tipos de correo: **ALERTA** (`ALERTA WALLAPOP <nombre>` + YAML completo tras `----- config_x.yaml -----`, crea/reemplaza el config), **BORRAR** (`BORRAR WALLAPOP <nombre>` + nombres tras `----- ALERTAS A ELIMINAR -----`, o `TODAS`) y **AÑADIR** (`AÑADIR WALLAPOP <nombre>` + bloque YAML de solo alertas, las fusiona con el config existente). `ADD_TOKEN = "AÑADIR WALLAPOP"`; `ADD_TOKEN_IMAP = "ADIR WALLAPOP"` (subcadena ASCII para la búsqueda IMAP, evita el problema de codificación de la Ñ). `_extract_added_alerts()` parsea el bloque de alertas recortando líneas de firma hasta que valida; `_apply_add()` carga el config existente, añade las alertas nuevas deduplicando por nombre en minúsculas (backup + escritura atómica, preserva el resto de campos); `_process_add()` orquesta extracción + fusión + respuesta con la lista de alertas activas actualizada. Si el usuario no tiene config todavía, responde pidiendo crear uno primero con la pestaña "Crear/editar". Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
 | `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `sleep_hours`, `reply_confirmation` y **sección `llm`** (cascada, modelos por proveedor, claves y `cooldown_seconds`, comunes a todos los usuarios). **Nunca lo tocan los correos entrantes.** |
 | `configs/<user_id>.yaml` | Un config por usuario (ej. `dario.yaml`). El filtro de IA es un único `use_ai: true/false`; el orden/modelos del LLM viven en `bot_settings.yaml`. En la BD cada alerta va como `user_id/nombre`. |
 
@@ -162,17 +162,33 @@ con el último visto:
 
 DB: `update_prices()` refresca precios; `promote_to_keep()` recupera rechazados.
 
-### Borrado de alertas por correo
+### Añadir y borrar alertas por correo (incremental)
 
-Además de aplicar configs, el buzón acepta órdenes de borrado:
+Además de aplicar (reemplazar) el config completo, el buzón acepta dos
+operaciones incrementales sobre las alertas de un usuario:
+
+**Añadir** (`config_inbox.py`, jun 2026):
+- Asunto `AÑADIR WALLAPOP <nombre>`, cuerpo con un bloque YAML de solo
+  `alerts:` (sin tocar `email`, `location`, etc.).
+- `config_inbox._apply_add()` carga el config existente del usuario y añade
+  las alertas nuevas, **deduplicando por nombre en minúsculas** (si ya existe
+  una alerta con ese nombre, no se duplica). Backup + escritura atómica,
+  preservando intacto el resto del config.
+- Si el usuario no tiene config todavía (primera vez), el bot responde
+  pidiendo crear uno primero con la pestaña "Crear/editar" del formulario.
+- La pestaña **"Añadir alertas"** del formulario (v18) genera este correo
+  desde su propia lista de tarjetas, independiente de la de creación.
+
+**Borrar**:
 - Asunto `BORRAR WALLAPOP <nombre>`, cuerpo con `----- ALERTAS A ELIMINAR -----`
   y un nombre de alerta por línea (o `TODAS`).
 - `config_inbox._apply_delete()` quita esas alertas del YAML del usuario (backup
   + escritura atómica, preservando el resto). `TODAS` deja la lista vacía (en
   pausa) sin borrar el archivo.
-- La pestaña **"Eliminar alertas"** del formulario genera ese correo. Las
-  confirmaciones del bot (aplicar y borrar) incluyen la lista de alertas activas,
-  copiable para pegarla en esa pestaña.
+- La pestaña **"Eliminar alertas"** del formulario genera ese correo.
+
+Las confirmaciones del bot (aplicar, añadir y borrar) incluyen siempre la
+lista de alertas activas, copiable para pegarla en la pestaña de borrado.
 
 ### Imports y rutas
 
@@ -361,21 +377,21 @@ en CI se pierden a propósito: el historial git ES el backup.
 
 ### Archivo final
 
-**`02_Herramienta/wallapop_config_v15.html`** — regenerado (jun 2026) tras
-perderse el original: 164 KB, compilado con esbuild + Tailwind por CDN
-(necesita internet para estilos y para el buscador de municipios; el
-original de 440 KB era 100% autocontenido vía Parcel)
+**`02_Herramienta/wallapop_config_v18.html`** — autocontenido, vanilla JS sin
+build. Reemplaza a v15/v17 (conservadas como histórico).
 
-### Secciones del formulario
+### Secciones del formulario (v18)
 
 | Sección | Contenido |
 |---|---|
-| Identidad | Desplegable `<select id="who">` (usuarios del array `USERS`): elige el nombre y rellena el `recipient`. El correo se muestra en un campo **editable**; si lo cambias, se guarda en esa copia del HTML (`localStorage`, clave `wallabot_email_overrides`) y avisa de cambiarlo también en el `USERS` oficial |
+| Identidad | Desplegable `<select id="who">` **hardcodeado** (Darío / Marc, constante `USERS` en el HTML) en vez de campos de nombre/correo libres. Añadir un usuario nuevo requiere editar `USERS` en el HTML **y** ejecutar `manage.py add-user` por separado — los dos pasos no están enlazados |
 | Cargar | Cargar un `config.yaml` existente para editar |
-| 2 — Zona y frecuencia | Intervalo de minutos · Accesos rápidos (Valencia, Tavernes, Palomares) · Buscador de municipios (OpenStreetMap/Nominatim) · Slider radio 0-50 km · Opciones de entrega (En persona / Con envío) |
-| 3 — Juegos | Lista dinámica: nombre, keywords, precio máx/mín, categorías `want`, exclusiones |
-| 4 — Filtro inteligente | Usar IA on/off (`use_ai`) |
-| Enviar a wallabot | Genera YAML y abre borrador en Gmail |
+| Pestaña 1 — Crear/editar | Zona y entrega (accesos rápidos, buscador Nominatim, slider radio, en persona/envío) · Lista de juegos (`renderGameCards`, nombre/keywords/precio/want/exclude) · Filtro IA on/off · Genera y envía `ALERTA WALLAPOP <nombre>` (reemplaza el config completo) |
+| Pestaña 2 — Añadir alertas | Lista de tarjetas independiente (`state.addGames`, mismo `renderGameCards` reutilizado) · Genera y envía `AÑADIR WALLAPOP <nombre>` con solo el bloque `alerts:` (`buildAlertsYAML`), se fusiona con el config existente sin tocarlo |
+| Pestaña 3 — Eliminar alertas | Genera y envía `BORRAR WALLAPOP <nombre>` con la lista de nombres a quitar (o `TODAS`) |
+
+> El campo "Comprobar cada X minutos" (frecuencia local) se eliminó en v18:
+> no tiene efecto corriendo en GitHub Actions (cron horario fijo).
 
 ### Constantes fijas (no visibles en el formulario)
 
@@ -497,6 +513,7 @@ delivery:
 | `test_railway_paths.py` | Simula Railway en local (define `DATA_DIR` y overrides de entorno) y verifica rutas, siembra del volumen y lista blanca. Sin red. |
 | `test_llm_cloud.py` | Verifica sin red el adaptador LLM multi-proveedor (groq/gemini/ollama): endpoints, cabeceras, modelo efectivo, modo JSON, mapeo de mensajes a Gemini, parseo tolerante y reintento ante 429. |
 | `test_cascade.py` | Verifica sin red la **cascada**: que al fallar un proveedor se pasa al siguiente, que al agotarse cae en reglas (`unknown`), y que el circuit breaker saca de la rotación a un proveedor en cooldown. |
+| `test_add_alerts.py` | Verifica sin red el comando **AÑADIR**: fusión (`_apply_add`, dedupe por nombre en minúsculas, preserva el resto del config) y extracción (`_extract_added_alerts`, recorte de firma hasta YAML válido), incluyendo el caso de usuario sin config previo. |
 
 ---
 
@@ -516,11 +533,19 @@ delivery:
 | v12 | Fix: una sola navegación via `window.location.href` |
 | v13 | Destinatario cambiado a `wallabot01@gmail.com` |
 | v14 | Textos pulidos: "wallabot Alerts", subtítulo, placeholders con ejemplos reales, color `--gold` → turquesa |
-| v15 | Zona rediseñada: accesos rápidos (Valencia / Tavernes / Palomares) + buscador Nominatim + slider radio 0-50 km + opciones de entrega. Backend: `scraper.py` captura `is_shippable`/`lat`/`lon`; `main.py` aplica filtro post-hoc con `_delivery_ok` + `_haversine_km`. Config: `location.radius_km` + bloque `delivery`. ← **versión actual** |
+| v15 | Zona rediseñada: accesos rápidos (Valencia / Tavernes / Palomares) + buscador Nominatim + slider radio 0-50 km + opciones de entrega. Backend: `scraper.py` captura `is_shippable`/`lat`/`lon`; `main.py` aplica filtro post-hoc con `_delivery_ok` + `_haversine_km`. Config: `location.radius_km` + bloque `delivery`. |
+| v17 | Versión intermedia (histórico). |
+| v18 | Selección de usuario vía `<select id="who">` hardcodeado (Darío / Marc) en vez de campos de nombre/correo libres (añadir usuarios requiere editar la constante `USERS` en el HTML Y ejecutar `manage.py add-user`); eliminado el campo "Comprobar cada X minutos" (irrelevante en Actions); nueva tercera pestaña **"Añadir alertas"** con su propia lista de tarjetas (`state.addGames`) que envía correos `AÑADIR WALLAPOP <nombre>` con solo el bloque YAML de alertas; `renderGames` refactorizado en `renderGameCards(boxId, games, afterChange)` compartido entre pestañas de crear y añadir; `buildAlertsYAML(games)` extraída de `buildYAML` para reutilizar; las pestañas ahora cubren tres vistas (crear / añadir / eliminar). ← **versión actual** |
 
-> **Backend (jun 2026), sin cambio de HTML:** multi-config (`configs/<user_id>.yaml`,
+> **Backend (jun 2026), sin cambio de HTML hasta v18:** multi-config (`configs/<user_id>.yaml`,
 > BD con prefijo por usuario) + extracción automática del buzón (`config_inbox.py`
-> + `bot_settings.yaml`). Migración ejecutada con `migrate_multiconfig.py`.
+> + `bot_settings.yaml`). Migración ejecutada con `migrate_multiconfig.py`. La
+> cascada LLM se hizo **fail-fast** (sin sleep/retry ante 429, un solo reintento
+> corto ante 5xx) tras detectarse 45+ reintentos en 10 minutos sobre un lote de
+> 218 anuncios. El workflow de GitHub Actions (`wallabot.yml`) ejecuta ahora
+> `git pull --rebase --autostash` **antes** de `git add` (no después) para evitar
+> fallos de push cuando el remoto ha divergido. Cerebras quedó roto (ver tabla de
+> `01_Core/` arriba) y pendiente de arreglo de API key.
 
 ---
 
@@ -582,3 +607,141 @@ delivery:
   de Actions (expiran, no fiables como estado). Coste asumido: ~720
   commits/mes y repo que crece; beneficio: cero infraestructura externa y
   el historial git actúa de backup de los configs.
+
+- **Cascada LLM fail-fast (jun 2026)**: un log de producción mostró 45+
+  reintentos en 10 minutos sobre un lote de 218 anuncios cuando todos los
+  proveedores gratuitos estaban en rate limit. Causa: `_post_with_retry`
+  reintentaba con sleep ante 429. Fix: un 429 ahora trip-ea el circuit
+  breaker inmediatamente y avanza al siguiente proveedor sin esperar; los
+  5xx solo dan un reintento corto. Evita bloquear el ciclo completo cuando
+  la capa gratuita está saturada.
+
+- **`git pull --rebase --autostash` antes de `git add` en el workflow**: si
+  el remoto ha divergido (p. ej. dos ejecuciones solapadas, o un commit
+  manual), hacer el pull después de `git add` podía fallar el push. Mover
+  el pull al principio del paso de commit evita el fallo.
+
+---
+
+## ⚠️ Diseño en curso (jun 2026) — rediseño del clasificador, AÚN NO IMPLEMENTADO
+
+Lo que sigue es el resultado de una sesión de diseño sobre cómo mejorar la
+distinción base/expansión/componentes/lote. **Nada de esto está en el código
+todavía**: es la especificación a implementar en `classifier.py`. Se deja
+aquí para no perder el contexto de la decisión, separado del resto del
+documento (que describe el sistema real en producción).
+
+### Motivación
+
+Dos fallos reales detectados en producción, de naturaleza distinta:
+
+1. **Falso "no es lote" por contaminación de tags**: anuncios de un único
+   juego de mesa cuya descripción incluye un bloque de SEO-spam con 30-40
+   nombres de otros juegos (ej. "Fantasy Realms Mitos Griegos", "Juego de
+   mesa Cryptid", "Everdell Juego de Mesa"). El clasificador actual cuenta
+   menciones de nombres de juego en todo el texto (tags incluidos) y
+   concluye "lote" cuando en realidad es un solo juego suelto.
+2. **Falso "lote" por vocabulario de relación base→expansión**: un anuncio
+   de un único producto (ej. "Miniaturas Root (141uds) resina", que es
+   *components*) menciona "Juego Base y Expansiones Los Ribereños, Los
+   Subterráneos, Marauders" como descripción del universo del producto, no
+   como lista de productos distintos a la venta. El clasificador actual lo
+   interpreta como lote por la multiplicidad de nombres propios.
+
+Conclusión de diseño: **contar menciones de nombres de juego en el texto
+nunca debe ser, por sí solo, la señal de "lote"**. Hay que distinguir
+multiplicidad léxica (cuántos nombres de juego aparecen) de multiplicidad de
+objetos en venta (cuántos productos distintos se ofrecen).
+
+### Arquitectura propuesta: reglas primero, LLM como verificación
+
+```
+Anuncio (título + descripción)
+        │
+        ▼
+Etapa 0 — Normalización
+  - lowercase + sin tildes (+ copia con tildes para LLM)
+  - separar contenido real de bloque de tags-spam
+  - salida: titulo_limpio, descripcion_limpia, titulo_tags, descripcion_tags
+        │
+        ▼
+Etapa 1 — Reglas preliminares (SOLO sobre *_limpio, nunca sobre *_tags)
+  orden de evaluación, se detiene en el primer match:
+  1. Components  (vocabulario muy específico: miniaturas, inserto, fundas...)
+  2. Lote         (≥2 nombres de juego DISTINTOS en contenido real, regla dura:
+                    si solo queda 1 nombre de juego tras quitar tags, nunca lote)
+  3. Expansión    (palabra "expansión/ampliación" + nombre del juego de la
+                    alerta en la misma frase; sin lista de expansiones propias)
+  4. Base         (default: si es relevante a la alerta y no matcheó 1-3)
+  → clasificación preliminar + nivel de confianza + señales activadas
+        │
+        ▼
+Etapa 2 — Verificación LLM (cascada existente: Gemini → Groq → Cerebras → rules)
+  - input: texto limpio + clasificación preliminar + razón/señales de la regla
+            + _suspicion_hints() existente
+  - el LLM confirma o corrige con justificación breve (más barato y
+    consistente que clasificar desde cero)
+  - si la cascada se agota sin respuesta → se queda la clasificación de
+    reglas + su confianza (filosofía "ante la duda, dejar pasar" se
+    mantiene, pendiente decidir si hay excepción para Lote de baja confianza)
+```
+
+### Etapa 0 en detalle — separación contenido real / tags
+
+No se detecta solo por marcador explícito ("Tags:", "Similar a:"). Cuando no
+hay marcador, la señal es **estructural**: una racha de elementos separados
+por comas (umbral orientativo: 4-5+) **sin ningún verbo conjugado** se trata
+como bloque de tags, aunque no haya punto de corte previo. Ejemplo real:
+
+> "Juego en muy buen estado y como nuevo. Se vende por falta de espacio.
+> Barrage, Underwater Cities, Gran Austria Hotel, SETI, Revive, Cascadia..."
+
+Corte tras "Se vende por falta de espacio." — lo anterior tiene verbos
+conjugados (vende), lo posterior es una racha de 40 sustantivos sin verbo.
+
+### Etapa 1 en detalle — vocabulario por categoría
+
+**Components** (se evalúa primero):
+miniatura(s)/mini(s)/figura(s), inserto/organizador/organizer/insert,
+ficha(s)/token(s)/cartas sueltas/cartas de repuesto, tablero suelto/tapete/
+playmat, dado(s) (solo si no va acompañado de "juego de mesa"), sleeves/
+fundas, pieza(s) de repuesto/recambio, peana(s)/base(s) de miniatura, promo/
+carta promocional (cuando es claramente un único componente).
+
+**Lote** (se evalúa segunda, requiere ≥2 juegos distintos en contenido real):
+lote de juegos/lote juegos de mesa, varios juegos/conjunto de juegos, se
+vende(n) junto(s), pack de juegos (desambiguar de "pack de miniaturas" →
+Components), listado con viñetas/saltos de línea de títulos distintos,
+"incluye:" + ≥2 nombres de juego sin relación base/expansión entre ellos.
+Regla dura de seguridad: 1 solo nombre de juego tras quitar tags → nunca
+Lote, sin importar qué otro vocabulario aparezca.
+
+**Expansión**:
+expansión/expansion/exp., "para [juego de la alerta]", amplía/ampliación,
+"no incluye juego base"/"necesita juego base"/"requiere base", patrón
+[juego de la alerta] + "expansión/es" en la misma frase sin vocabulario de
+Lote.
+
+**Base**: default si el anuncio es relevante a la alerta y no disparó 1-3.
+
+### Limitación conocida y aceptada
+
+Sin lista de expansiones propias por juego (decisión explícita: no se quiere
+mantener esa lista por ahora), un caso como "Root + expansión Los Ribereños y
+Los Subterráneos" puede confundir los nombres propios de expansión con
+nombres de juego adicionales y disparar Lote por error en la Etapa 1. Este
+caso ambiguo se delega a la Etapa 2 (LLM) para resolverlo; es una limitación
+asumida del enfoque genérico.
+
+### Pendiente de decidir antes de implementar
+
+- Si Lote de baja confianza sin LLM disponible se envía igual (filosofía
+  "ante la duda, dejar pasar") o si Lote es la única categoría donde se
+  prefiere NO enviar ante incertidumbre, dado que es justo la categoría con
+  más falsos positivos detectados.
+- Si se mantiene la detección de "¿es un juego de mesa?" como filtro previo
+  separado (como hoy, vía LLM) o se integra dentro de esta misma Etapa 1/2.
+- Modelos candidatos para la Etapa 2 (sin cambiar la cascada actual, que ya
+  cubre esto): Gemini 1.5 Flash, Groq (ya en uso), Cerebras (cuando se
+  resuelva la clave), como alternativa ligera también valorada Claude 3.5
+  Haiku u Ollama local (Llama 3.1 8B) si se quisiera opción 100% local.
