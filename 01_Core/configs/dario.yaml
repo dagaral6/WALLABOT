@@ -1,6 +1,6 @@
 # Config de 'dario' aplicada automaticamente desde el buzon.
 # Remitente: dariogarciaalvarez01@gmail.com | Nombre en el formulario: Darío
-# Aplicada: 2026-06-17 22:11:09
+# Aplicada: 2026-06-17 22:29:27
 
 email:
   smtp_host: smtp.gmail.com
@@ -24,6 +24,10 @@ alerts:
   - name: "Frostpunk"
     keywords: "frostpunk"
     max_price: 90
-    exclude: ["videojuego", "ps4", "ps5"]
+    exclude: ["sidequest"]
+  - name: "Inis: Estaciones"
+    keywords: "inis estaciones"
+    max_price: 35
+    want: ["expansion"]
 
 lote_bypass_price: true
