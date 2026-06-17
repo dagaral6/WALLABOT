@@ -76,12 +76,12 @@ _ALL_TOKENS = {"todas", "todos", "all", "todas las alertas",
 
 # --- agregar alertas (incremental) ---
 ADD_TOKEN = "AÑADIR WALLAPOP"
-# Substring ASCII sin espacios para la busqueda IMAP. Al llevar la Ñ, el
-# header Subject se codifica RFC 2047 y el espacio se convierte en "_"
-# dentro del bloque codificado, por lo que "ADIR WALLAPOP" (con espacio)
-# nunca casa contra el header crudo. "ADIR" solo, sin espacio, es unico
-# entre los tokens y sobrevive a la codificacion.
-ADD_TOKEN_IMAP = "ADIR"
+# La busqueda IMAP de Gmail indexa por palabras completas (como su buscador
+# web), no por subcadena del header crudo: "ADIR" nunca casa con "AÑADIR"
+# por mucho que sea substring, asi que no sirve como token de busqueda.
+# Verificado en vivo: SUBJECT "ADIR" -> 0 resultados aunque haya correos
+# "AÑADIR WALLAPOP" sin leer; SUBJECT "WALLAPOP" -> los encuentra siempre,
+# porque es una palabra completa presente en los tres asuntos.
 
 
 # ---------------------------------------------------------------- settings --
@@ -665,11 +665,14 @@ def check_and_apply(settings=None, dry_run=False):
     try:
         M.login(user, pwd)
         M.select("INBOX")
-        nums = []
-        for tok in (SUBJECT_TOKEN, DELETE_TOKEN, ADD_TOKEN_IMAP):
-            typ, data = M.search(None, '(UNSEEN SUBJECT "%s")' % tok)
-            if typ == "OK" and data and data[0]:
-                nums.extend(data[0].split())
+        # Una sola busqueda por la palabra comun a los 3 asuntos (ALERTA/
+        # BORRAR/AÑADIR WALLAPOP). Gmail indexa por palabra completa, no por
+        # subcadena, asi que un token parcial de "AÑADIR" nunca funciona.
+        # Se excluyen los correos del propio buzon del bot (sus avisos de
+        # novedades "[Wallapop] ..." tambien contienen esa palabra).
+        typ, data = M.search(
+            None, '(UNSEEN SUBJECT "WALLAPOP" NOT FROM "%s")' % user)
+        nums = data[0].split() if typ == "OK" and data and data[0] else []
         # Sin duplicados y en orden ascendente (el correo mas reciente gana).
         nums = sorted(set(nums), key=lambda b: int(b))
         if nums:
