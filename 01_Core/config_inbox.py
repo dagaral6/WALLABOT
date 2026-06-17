@@ -76,9 +76,12 @@ _ALL_TOKENS = {"todas", "todos", "all", "todas las alertas",
 
 # --- agregar alertas (incremental) ---
 ADD_TOKEN = "AÑADIR WALLAPOP"
-# Substring ASCII para la busqueda IMAP. IMAP no busca bien caracteres no-ASCII
-# (la Ñ), pero "AÑADIR" contiene "ADIR", que es ASCII y unico entre los tokens.
-ADD_TOKEN_IMAP = "ADIR WALLAPOP"
+# Substring ASCII sin espacios para la busqueda IMAP. Al llevar la Ñ, el
+# header Subject se codifica RFC 2047 y el espacio se convierte en "_"
+# dentro del bloque codificado, por lo que "ADIR WALLAPOP" (con espacio)
+# nunca casa contra el header crudo. "ADIR" solo, sin espacio, es unico
+# entre los tokens y sobrevive a la codificacion.
+ADD_TOKEN_IMAP = "ADIR"
 
 
 # ---------------------------------------------------------------- settings --
