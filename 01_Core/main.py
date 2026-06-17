@@ -203,11 +203,14 @@ def evaluate(item, alert, cfg):
     if _hard_excluded(item, alert):
         return "reject", "excluded"
 
+    title = item.get("title", "")
+    desc = item.get("description", "")
+    if classifier.looks_foreign_language(title, desc):
+        return "reject", "foreign_language"
+
     use_llm = _use_ai(cfg)
     model = classifier.get_ollama_model()
     target = alert["keywords"]
-    title = item.get("title", "")
-    desc = item.get("description", "")
     want = alert.get("want") or ["base", "lote"]
     bypass = cfg.get("lote_bypass_price", True)
 

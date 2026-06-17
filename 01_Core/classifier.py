@@ -93,6 +93,37 @@ def _has_lote_vocab(text):
     return bool(_LOTE_VOCAB_RE.search(_normalize(text)))
 
 
+# --- Idioma del anuncio: solo nos interesan español, catalán e inglés -------
+# Si el propio anuncio (título/descripción) está en otro idioma, asumimos que
+# el juego también lo está y lo descartamos. Vocabulario DELIBERADAMENTE
+# inequívoco (palabras/frases que no existen en es/ca/en) para no rechazar
+# por error un anuncio en los idiomas que sí interesan. _normalize() solo
+# quita tildes españolas (á é í ó ú ñ), así que las marcas propias de otros
+# idiomas (è, ç, ü, ã...) se conservan intactas para esta comprobación.
+_FOREIGN_LANG_VOCAB = [
+    # frances
+    "très", "avec", "français", "française", "jeu de société",
+    "vendu", "neuf", "état",
+    # aleman
+    "und", "sehr", "gebraucht", "verkaufe", "zustand", "spiel",
+    "neuwertig", "versand",
+    # italiano
+    "gioco da tavolo", "ottime condizioni", "usato", "nuovo di zecca",
+    "perfetto", "vendo il gioco",
+    # portugues
+    "jogo de tabuleiro", "tabuleiro", "muito bom estado", "perfeito", "não",
+]
+_FOREIGN_LANG_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _FOREIGN_LANG_VOCAB) + r")\b")
+
+
+def looks_foreign_language(title, description):
+    """True si el título o la descripción tienen vocabulario inequívoco de un
+    idioma que no sea español, catalán o inglés (señal de que el juego mismo
+    está en ese idioma)."""
+    return bool(_FOREIGN_LANG_RE.search(_normalize(f"{title} {description}")))
+
+
 # --- Detección ESTRUCTURAL de ráfaga de tags (spam SEO sin marcador) ---------
 # Algunos vendedores pegan al final una ristra de nombres de juegos separados
 # por comas (sin "Tags:" delante) para salir en más búsquedas. La detectamos por
