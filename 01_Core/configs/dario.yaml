@@ -1,6 +1,6 @@
 # Config de 'dario' aplicada automaticamente desde el buzon.
 # Remitente: dariogarciaalvarez01@gmail.com | Nombre en el formulario: Darío
-# Aplicada: 2026-06-16 16:54:03
+# Aplicada: 2026-06-17 22:11:09
 
 email:
   smtp_host: smtp.gmail.com
@@ -8,8 +8,6 @@ email:
   sender: "wallabot01@gmail.com"
   app_password: "zbmj kkzj cezy shkg"
   recipient: "dariogarciaalvarez01@gmail.com"
-
-check_interval_minutes: 30
 
 location:
   latitude: 39.4699
@@ -23,8 +21,9 @@ delivery:
 use_ai: true
 
 alerts:
-  - name: "Risk"
-    keywords: "risk"
-    min_price: 100
+  - name: "Frostpunk"
+    keywords: "frostpunk"
+    max_price: 90
+    exclude: ["videojuego", "ps4", "ps5"]
 
 lote_bypass_price: true
