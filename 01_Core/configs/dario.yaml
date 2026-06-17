@@ -1,5 +1,5 @@
-# Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-17 23:06:21 | Nuevas: Ladrillazo
+# Config de 'dario' actualizada automaticamente (borrado de alertas).
+# 2026-06-17 23:22:52 | Eliminadas: Frostpunk, Inis: Estaciones, Las Estaciones de Inis, Inis: Expansión Estaciones, Ladrillazo
 
 email:
   smtp_host: smtp.gmail.com
@@ -15,28 +15,5 @@ delivery:
   in_person: true
   shipping: true
 use_ai: true
-alerts:
-- name: Frostpunk
-  keywords: frostpunk
-  max_price: 90
-  exclude:
-  - sidequest
-- name: 'Inis: Estaciones'
-  keywords: inis estaciones
-  max_price: 35
-  want:
-  - expansion
-- name: Las Estaciones de Inis
-  keywords: inis expansion estaciones
-  max_price: 35
-  want:
-  - expansion
-- name: 'Inis: Expansión Estaciones'
-  keywords: inis estaciones
-  max_price: 35
-  want:
-  - expansion
-- name: Ladrillazo
-  keywords: ladrillazo
-  max_price: 35
+alerts: []
 lote_bypass_price: true
