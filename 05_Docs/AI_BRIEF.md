@@ -24,10 +24,15 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 - Ante la duda, dejar pasar anuncios.
 - El título decide relevancia; el LLM clasifica base/expansión/componentes/lote/no-juego.
+- Solo interesan anuncios en español, catalán o inglés. `classifier.looks_foreign_language()` descarta el resto (se asume que un anuncio en otro idioma es el juego en ese idioma) — se llama en `evaluate()` de `main.py` antes de cualquier LLM.
 - No editar configs comentados con dumps genéricos.
 - No ejecutar localmente `main.py` con Actions activo salvo intención clara.
 - No tocar secretos.
 - No modificar `06_Backups`, `99_Obsoletos` ni `04_Logs` salvo petición explícita.
+
+## Gotchas conocidos
+
+- IMAP de Gmail busca por PALABRA COMPLETA, no por subcadena del header crudo: un token parcial de una palabra con tilde (p.ej. "ADIR" de "AÑADIR") nunca casa, aunque sea substring literal. `config_inbox.py` busca por la palabra completa común a los 3 asuntos (`"WALLAPOP"`) y excluye por `NOT FROM` los avisos que el propio bot se envía a sí mismo.
 
 ## Validaciones
 

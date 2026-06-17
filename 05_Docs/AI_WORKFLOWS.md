@@ -37,3 +37,9 @@
 3. Mantener fail-fast ante 429.
 4. Mantener fallback `rules`.
 5. Ante duda, preferir false positive a anuncio perdido.
+6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`.
+
+## Cambio en correo entrante (config_inbox.py)
+
+1. La búsqueda IMAP en Gmail es por palabra completa, no por subcadena: no usar tokens parciales de palabras con tilde como criterio de búsqueda.
+2. Si se añade un nuevo tipo de asunto, comprobarlo en vivo con `python config_inbox.py --dry-run` antes de asumir que el `SUBJECT` search lo encuentra.
