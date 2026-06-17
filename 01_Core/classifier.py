@@ -322,7 +322,10 @@ def title_matches(target, title):
 #   OLLAMA_HOST         -> ollama        (local, por defecto localhost:11434)
 #
 # Orden de cascada (LLM_CASCADE o llm.cascade):
-#   Por defecto: groq,cerebras,gemini,openrouter,githubmodels,rules
+#   Por defecto: gemini,groq,rules  (ancla Gemini + respaldo Groq, ambos
+#   gratis y sin tope diario ajustado; cerebras/openrouter/githubmodels
+#   siguen soportados por el codigo pero fuera de la cascada por defecto:
+#   roto / cuota insuficiente / mayor riesgo, ver bot_settings.yaml).
 #   Ollama local: ollama,groq,...        Solo reglas: rules
 #
 # LLM_COOLDOWN (o llm.cooldown_seconds) = pausa por proveedor tras 429 (def. 600)
@@ -374,8 +377,7 @@ _SETTINGS_MODELS: dict[str, str] = {}
 _SETTINGS_KEYS: dict[str, str] = {}
 
 # --- cascade ---
-_raw_cascade = os.getenv("LLM_CASCADE",
-                         "groq,cerebras,gemini,openrouter,githubmodels,rules")
+_raw_cascade = os.getenv("LLM_CASCADE", "gemini,groq,rules")
 LLM_CASCADE   = [p.strip().lower() for p in _raw_cascade.split(",") if p.strip()]
 # Para compatibilidad: si se define LLM_PROVIDER a un valor concreto y
 # LLM_CASCADE no está en el entorno, lo respetamos.

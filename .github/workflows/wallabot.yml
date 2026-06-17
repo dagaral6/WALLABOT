@@ -28,7 +28,7 @@ jobs:
       # El ORDEN de la cascada de LLM vive ahora en 01_Core/bot_settings.yaml
       # (seccion 'llm'). Si quieres forzarlo SOLO en CI, descomenta LLM_CASCADE
       # (la variable de entorno tiene prioridad sobre el YAML):
-      # LLM_CASCADE: "groq,cerebras,gemini,openrouter,githubmodels,rules"
+      # LLM_CASCADE: "gemini,groq,rules"
       #
       # Claves de los proveedores (capa gratuita). Crea cada Secret en
       # Settings > Secrets and variables > Actions. Las que no existan quedan

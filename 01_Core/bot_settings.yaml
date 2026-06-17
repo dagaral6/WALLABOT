@@ -47,14 +47,24 @@ reply_confirmation: true
 # seguridad y NO ralentizan nada. Cada valor admite override por variable de
 # entorno (util para Secrets en CI), que SIEMPRE tiene prioridad sobre esto.
 #
-# Para dar de alta cada proveedor (capa gratuita, sin tarjeta):
+# Cascada por defecto: gemini (ancla, capa gratuita estable de Google,
+# sin tarjeta) + groq (respaldo, igual de gratis) + rules (red final, sin
+# IA, nunca se agota). Fuera de la cascada activa por los motivos vistos en
+# jun 2026:
+#   cerebras      -> roto (API key invalida en Actions + fallo SSL local)
+#   openrouter    -> modelos ':free' limitados a 50 peticiones/dia, insuficiente
+#   githubmodels  -> requiere un PAT (mayor riesgo si se filtra), limites poco fiables
+# El codigo de estos 3 proveedores sigue intacto en classifier.py: basta
+# añadirlos de nuevo a 'cascade' si se resuelven sus problemas.
+#
+# Alta de cada proveedor (capa gratuita, sin tarjeta):
 #   groq          -> console.groq.com            (GROQ_API_KEY)
 #   cerebras      -> cloud.cerebras.ai           (CEREBRAS_API_KEY)  1M tok/dia, el mas rapido
 #   gemini        -> aistudio.google.com         (GEMINI_API_KEY)
 #   openrouter    -> openrouter.ai               (OPENROUTER_API_KEY) modelos ':free', 50/dia
 #   githubmodels  -> PAT con permiso models:read (GH_MODELS_TOKEN)
 llm:
-  cascade: [groq, cerebras, gemini, openrouter, githubmodels, rules]
+  cascade: [gemini, groq, rules]
 
   # Modelo por proveedor (si se omite uno, se usa su valor por defecto).
   models:
@@ -65,15 +75,16 @@ llm:
     githubmodels: "openai/gpt-4o-mini"
     ollama:       "qwen2.5:3b"        # solo si 'ollama' esta en la cascada (local)
 
-  # API keys. Dejalas vacias para usar variables de entorno (recomendado en CI)
-  # o pega aqui la clave (el repo es privado). La env-var del mismo proveedor
-  # SIEMPRE manda sobre lo que pongas aqui.
+  # API keys. Dejalas vacias y usa variables de entorno / GitHub Secrets
+  # (recomendado, sobre todo en CI). La env-var del mismo proveedor SIEMPRE
+  # manda sobre lo que pongas aqui. NUNCA pegues claves reales en este
+  # archivo: esta commiteado en el repo.
   keys:
-    groq:         "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"    # o variable GROQ_API_KEY
-    cerebras:     "csk-4v2pj5xnn56x3jdyyyyffk2evrd5jrxtvh5dx6xndk49f9nw"    # o variable CEREBRAS_API_KEY
-    gemini:       "AQ.Ab8RN6JW2EG4V4O5btMmHWknkQWEKRlFI_9Jq4rabwFznT0CFw"    # o variable GEMINI_API_KEY
-    openrouter:   "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"    # o variable OPENROUTER_API_KEY
-    githubmodels: "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"    # o variable GH_MODELS_TOKEN
+    groq:         ""    # o variable GROQ_API_KEY
+    cerebras:     ""    # o variable CEREBRAS_API_KEY
+    gemini:       ""    # o variable GEMINI_API_KEY
+    openrouter:   ""    # o variable OPENROUTER_API_KEY
+    githubmodels: ""    # o variable GH_MODELS_TOKEN
 
   # Pausa (segundos) que aplica un proveedor tras un 429 sostenido antes de
   # volver a intentarse (circuit breaker). Override: variable LLM_COOLDOWN.
