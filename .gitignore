@@ -5,6 +5,7 @@ __pycache__/
 04_Logs/
 06_Backups/
 99_Obsoletos/
+CLAUDE.local.md
 *.tmp
 
 # NOTA: 01_Core/alerts.db y 01_Core/configs/ SI van al repo a proposito:

@@ -71,21 +71,111 @@ _TAG_MARKERS_RE = re.compile(
 )
 
 
+# --- Vocabulario EXPLÍCITO de LOTE (regla dura, rediseño jun 2026) -----------
+# Su presencia es CONDICIÓN NECESARIA para clasificar como 'lote': sin él, nunca
+# es lote (aunque lo diga el modelo). Deliberadamente ESPECÍFICO (frases de lote
+# reales) para no confundir "pack completo de minis" (componentes) ni "Juego
+# Base y Expansiones X, Y, Z" (un solo juego) con un lote. En forma normalizada
+# (sin tildes, minúsculas), porque se compara contra _normalize(texto).
+_LOTE_VOCAB = [
+    "lote", "coleccion", "bundle",
+    "lote de juegos", "varios juegos", "pack de juegos",
+    "conjunto de juegos", "se venden juntos", "se vende junto",
+    "se venden todos", "todo junto", "todos juntos",
+]
+_LOTE_VOCAB_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _LOTE_VOCAB) + r")\b")
+
+
+def _has_lote_vocab(text):
+    """True si el texto contiene vocabulario EXPLÍCITO de lote (_LOTE_VOCAB).
+    Por palabra/expresión completa: 'lote' no matchea dentro de 'loteria'."""
+    return bool(_LOTE_VOCAB_RE.search(_normalize(text)))
+
+
+# --- Detección ESTRUCTURAL de ráfaga de tags (spam SEO sin marcador) ---------
+# Algunos vendedores pegan al final una ristra de nombres de juegos separados
+# por comas (sin "Tags:" delante) para salir en más búsquedas. La detectamos por
+# su FORMA: muchos elementos cortos seguidos, por comas y sin verbos. El umbral
+# es ALTO a propósito: una lista de 8+ nombres es spam; listas cortas (un lote
+# de pocos juegos, o componentes "tablero, fichas, cartas...") NO se tocan.
+# Además solo se recorta si delante hay una frase con verbo (si no, la lista
+# podría ser el contenido real del anuncio). Tunable: _TAG_BURST_MIN_ITEMS.
+_TAG_BURST_MIN_ITEMS = 8
+
+# Marcas de que un fragmento es PROSA (estructura de frase), no un tag suelto.
+# Si un trozo entre comas contiene alguna, no cuenta como tag.
+_CLAUSE_VERB_RE = re.compile(
+    r"\b(vend\w*|incluy\w*|cont\w*|teng\w*|tien\w*|esta\w*|es|son|hay|"
+    r"busc\w*|regal\w*|cambi\w*|doy|falta\w*|jug\w*|us[ao]\w*|usad\w*|"
+    r"compr\w*|envi\w*|reserv\w*|qued\w*|sirve\w*|funciona\w*|acept\w*|"
+    r"precio|estado|nuevo|nueva|seminuevo|completo|completa)\b")
+
+
+def _find_tag_burst_start(description):
+    """Índice (sobre el original) donde empieza una ráfaga de nombres separados
+    por comas tipo spam SEO, o None. _normalize conserva longitud, así que los
+    offsets coinciden con el texto original."""
+    norm = _normalize(description)
+    segs, start = [], 0
+    for m in re.finditer(",", norm):
+        segs.append((start, norm[start:m.start()]))
+        start = m.start() + 1
+    segs.append((start, norm[start:]))
+    if len(segs) < _TAG_BURST_MIN_ITEMS:
+        return None
+
+    def _taglike(text):
+        s = text.strip()
+        if not s or len(s.split()) > 4:        # vacío o largo -> no es un tag
+            return False
+        return not _CLAUSE_VERB_RE.search(s)   # con verbo -> prosa, no tag
+
+    # Racha de trozos "tag-like" pegada al final.
+    i, run_start = len(segs) - 1, len(segs)
+    while i >= 0 and _taglike(segs[i][1]):
+        run_start = i
+        i -= 1
+    if len(segs) - run_start < _TAG_BURST_MIN_ITEMS:
+        return None
+
+    cut = segs[run_start][0]
+    # La ráfaga puede arrancar a media frase (el 1er nombre va pegado al final
+    # del trozo anterior, antes de la 1ª coma). Si tras el último punto del
+    # prefijo solo queda un fragmento corto sin verbo, lo incluimos en el corte.
+    seps = list(re.finditer(r"[.;\n]", norm[:cut]))
+    last = seps[-1].end() if seps else 0
+    tail = norm[last:cut]
+    if not _CLAUSE_VERB_RE.search(tail) and len(tail.split()) <= 4:
+        cut = last
+    # Exigir prosa (un verbo) ANTES de la ráfaga: si no, la lista es el contenido.
+    if not _CLAUSE_VERB_RE.search(norm[:cut]):
+        return None
+    return cut
+
+
 def strip_tag_spam(description):
     """
-    Recorta la descripción en el primer marcador tipo 'Tags:' o 'Similar a:' y
-    devuelve solo la parte de delante (la descripción real). Esos marcadores
-    suelen preceder a una lista de nombres de otros juegos que el vendedor pone
-    para salir en más búsquedas, pero que NO forman parte de lo que vende. Si no
-    hay marcador, deja la descripción igual.
+    Recorta la descripción para quitar listas de nombres de OTROS juegos que el
+    vendedor añade solo para salir en más búsquedas (no son lo que vende):
+      1) Marcador explícito: 'Tags:', 'Similar a:', 'Parecido a:'...
+      2) Ráfaga estructural: 8+ nombres cortos seguidos por comas y sin verbos,
+         precedidos de una frase real. SOLO se aplica si el anuncio NO tiene
+         vocabulario de lote (si lo tiene, esa lista podría ser los juegos
+         reales del lote y no se toca).
+    Si no detecta nada, devuelve la descripción igual.
     """
     if not description:
         return description
-    # Buscamos sobre el texto normalizado (sin tildes ni mayúsculas) y cortamos
-    # el original en el mismo índice: _normalize conserva la longitud.
+    # _normalize conserva la longitud -> los offsets valen sobre el original.
     m = _TAG_MARKERS_RE.search(_normalize(description))
-    if m:
-        return description[:m.start()].strip()
+    cut = m.start() if m else None
+    if cut is None and not _has_lote_vocab(description):
+        burst = _find_tag_burst_start(description)
+        if burst is not None:
+            cut = burst
+    if cut is not None:
+        return description[:cut].strip()
     return description
 
 
@@ -650,6 +740,11 @@ def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
         cat = data.get("category", "unknown")
         if data.get("includes_base_game") and cat in ("base", "expansion"):
             cat = "base"
+        # Regla dura (rediseño jun 2026): sin vocabulario explícito de lote en
+        # el texto limpio, NO puede ser 'lote' aunque lo diga el modelo. Evita
+        # el falso 'lote' por mencionar varias expansiones de un mismo juego.
+        if cat == "lote" and not _has_lote_vocab(f"{title} {description}"):
+            cat = "base"
         return cat if cat in VALID else "unknown"
     except requests.RequestException as e:
         log.warning("LLM no disponible [%s]: %s", LLM_PROVIDER, e)
@@ -732,9 +827,14 @@ def check_lote(target, title, description, use_llm=True, model="qwen2.5:3b"):
                             f"DESCRIPCIÓN: {description or '(sin descripción)'}"})
     try:
         data = _ask(model, _LOTE_SCHEMA, msgs)
+        is_lote = bool(data.get("is_lote", False))
+        # Regla dura (rediseño jun 2026): sin vocabulario explícito de lote, no
+        # es lote (aunque el modelo lo diga). includes_target solo si es lote.
+        if is_lote and not _has_lote_vocab(f"{title} {description}"):
+            is_lote = False
         return {
-            "is_lote": bool(data.get("is_lote", False)),
-            "includes_target": bool(data.get("includes_target", False)),
+            "is_lote": is_lote,
+            "includes_target": bool(data.get("includes_target", False)) and is_lote,
             "games": data.get("games", ""),
         }
     except requests.RequestException as e:
@@ -767,7 +867,9 @@ def looks_like_lote(title, description):
 def _fallback_category(title, description):
     t, d = _normalize(title), _normalize(description)
     full = f"{t} {d}"
-    if any(w in t for w in _LOTE_WORDS):   # 'lote' en el TÍTULO
+    # Lote (regla dura, rediseño jun 2026): vocabulario explícito de lote en
+    # título o descripción. No basta un 'pack' suelto (p.ej. "pack de minis").
+    if _has_lote_vocab(full):
         return "lote"
     if strong_base_signal(title, description):
         return "base"
