@@ -21,7 +21,7 @@
 1. Preferir `manage.py`.
 2. No editar `bot_settings.yaml` a ciegas.
 3. No sobrescribir YAMLs comentados con serialización completa.
-4. Verificar con `python3 manage.py list`.
+4. Verificar con `python manage.py list`.
 
 ## Cambio en GitHub Actions
 
