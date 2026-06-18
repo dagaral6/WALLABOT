@@ -35,4 +35,3 @@ Reglas:
 \* Ejecuta validaciones relevantes si procede.
 
 \* Al final dame resumen, archivos tocados, comandos ejecutados, validación, riesgos y diff/resumen de cambios.
-
