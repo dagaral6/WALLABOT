@@ -11,10 +11,10 @@
 
 ## Cambio en configurador HTML
 
-1. Si es cambio menor, editar `02_Herramienta/wallapop_config_v18.html`.
+1. Si es cambio menor, editar `02_Herramienta/wallapop_config_v20.html`.
 2. Si es cambio estructural, revisar fuente React si está disponible.
-3. Respetar que v18 es la versión actual.
-4. No tocar v15/v17 salvo referencia histórica.
+3. Respetar que v20 es la versión actual.
+4. No tocar v15/v17/v18/v19 salvo referencia histórica.
 
 ## Cambio en usuarios/configs
 

@@ -21,7 +21,7 @@ Tiene dos partes:
 | Carpeta | Contenido |
 |---|---|
 | `01_Core/` | Backend Python: `main.py`, `manage.py` (admin CLI), `scraper.py`, `classifier.py`, `notifier.py`, `database.py`, `config_inbox.py`, `bot_settings.yaml`, `configs/` (un YAML por usuario), `alerts.db`, `requirements.txt` |
-| `02_Herramienta/` | Configurador HTML autocontenido (`wallapop_config_v18.html`, vanilla JS, sin build); versiones anteriores (`wallapop_config_v15.html`, `wallapop_config_v17.html`) y zip del fuente React antiguo (histórico) |
+| `02_Herramienta/` | Configurador HTML autocontenido (`wallapop_config_v20.html`, vanilla JS, sin build); versiones anteriores (`wallapop_config_v15.html`, `wallapop_config_v17.html`, `wallapop_config_v18.html`, `wallapop_config_v19.html`) y zip del fuente React antiguo (histórico) |
 | `03_Diagnostico/` | Scripts de diagnóstico y tests: `diagnostico.py`, `check_db.py`, `probe_api.py`, `probe_catan.py`, `probe_inis.py`, `verify_fix.py`, `migrate_multiconfig.py`, y tests sin red `test_delivery.py`, `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_price_drops.py`, `test_add_alerts.py` |
 | `04_Logs/` | `raw_wallapop_response.json`, `output.txt` |
 | `05_Docs/` | `CONTEXT.md`, `README.md`, `DEPLOY_GITHUB_ACTIONS.md`, `DEPLOY_RAILWAY.md` |
@@ -43,9 +43,9 @@ Tiene dos partes:
 | `manage.py` | **Administración por CLI** sin editar YAML a mano. `list`, `add-user <correo> <user_id>` (backup + idempotente), `remove-user <correo|user_id>`. No toca configs ni BD al quitar un usuario. |
 | `scraper.py` | Búsqueda en la API de Wallapop con paginación completa via `meta.next_page`. Parámetros: `max_items=500`, `max_pages=10`, `page_pause=2s`, `retries=3`. `_normalize_item()` devuelve `id`, `title`, `description`, `price`, `url`, `image`, **`is_shippable`**, **`lat`**, **`lon`**. |
 | `classifier.py` | Híbrido regex + LLM en **cascada con circuit breaker, fail-fast**. Orden por defecto `gemini,groq,rules` (jun 2026; configurable en `bot_settings.yaml` → `llm.cascade` o por `LLM_CASCADE`) — ancla en Gemini (capa gratuita estable) con Groq de respaldo; `cerebras`/`openrouter`/`githubmodels` quedaron fuera de la cascada activa (roto / cuota 50-peticiones-dia insuficiente / mayor riesgo por PAT) pero el código sigue soportándolos. `_ask()` recorre los proveedores hasta que uno responde; `_post_with_retry()` es **fail-fast**: un 429 manda inmediatamente al proveedor a *cooldown* y pasa al siguiente **sin esperar ni reintentar**; un 5xx solo da **un reintento corto**. Cooldown 600 s (`LLM_COOLDOWN`/`llm.cooldown_seconds`); `rules` es el terminal. Proveedores OpenAI-compatibles (`_OPENAI_COMPAT_BASE`): `groq`, `cerebras`, `openrouter`, `githubmodels` y `openai` (LLM_BASE_URL); más `gemini` (ruta propia) y `ollama` (local). `configure_from_settings()` aplica modelos/claves/orden del YAML (la env-var SIEMPRE manda); `get_ollama_model()` da el modelo local. Categorías: `base`, `expansion`, `components`, `lote`, `not_game`, `unknown`. **Cerebras roto** (jun 2026): 404 en Actions (API key inválida) y fallo de certificado SSL en Windows local; modelo (`llama-3.3-70b`) y endpoint confirmados correctos, el problema es la clave en sí — pendiente de resolver. |
-| `database.py` | SQLite (`alerts.db`, tabla `seen_items`). Guarda categoría **y precio** por anuncio. Funciones: `get_known_ids`, `get_kept_rows`, **`get_rejected_rows`**, `add_items`, `delete_items`, **`update_prices`**, **`promote_to_keep`** (recuperar un rechazado a `keep` actualizando precio). |
+| `database.py` | SQLite (`alerts.db`, tabla `seen_items`). Guarda categoría **y precio** por anuncio. Funciones: `get_known_ids`, `get_kept_rows`, **`get_rejected_rows`**, `add_items`, `delete_items`, **`update_prices`**, **`promote_to_keep`** (recuperar un rechazado a `keep` actualizando precio), **`mark_alert_deleted`** (marca el histórico de una alerta eliminada en las columnas `deleted_reason`/`deleted_at`, sin borrar filas; migración suave por `_REQUIRED_COLS`). Motivos válidos en `VALID_DELETE_REASONS` (`comprado`/`ya_no_interesa`/`duplicada`/`otro`). |
 | `notifier.py` | Gmail SMTP. `build_html()` arma tres secciones: novedades, **⬇️ bajada de precio** (precio anterior tachado → nuevo; marca "ahora dentro de tu presupuesto" si se recupera) y bajas. `notify(..., price_drops=None)`. Toda la config se lee de `config["email"]`. |
-| `config_inbox.py` | Extractor IMAP. Tres tipos de correo: **ALERTA** (`ALERTA WALLAPOP <nombre>` + YAML completo tras `----- config_x.yaml -----`, crea/reemplaza el config), **BORRAR** (`BORRAR WALLAPOP <nombre>` + nombres tras `----- ALERTAS A ELIMINAR -----`, o `TODAS`) y **AÑADIR** (`AÑADIR WALLAPOP <nombre>` + bloque YAML de solo alertas, las fusiona con el config existente). `ADD_TOKEN = "AÑADIR WALLAPOP"`; `ADD_TOKEN_IMAP = "ADIR WALLAPOP"` (subcadena ASCII para la búsqueda IMAP, evita el problema de codificación de la Ñ). `_extract_added_alerts()` parsea el bloque de alertas recortando líneas de firma hasta que valida; `_apply_add()` carga el config existente, añade las alertas nuevas deduplicando por nombre en minúsculas (backup + escritura atómica, preserva el resto de campos); `_process_add()` orquesta extracción + fusión + respuesta con la lista de alertas activas actualizada. Si el usuario no tiene config todavía, responde pidiendo crear uno primero con la pestaña "Crear/editar". Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
+| `config_inbox.py` | Extractor IMAP. Tres tipos de correo: **ALERTA** (`ALERTA WALLAPOP <nombre>` + YAML completo tras `----- config_x.yaml -----`, crea/reemplaza el config), **BORRAR** (`BORRAR WALLAPOP <nombre>` + líneas `<nombre> | <motivo>` tras `----- ALERTAS A ELIMINAR -----`, o `TODAS | <motivo>`; al borrar marca el histórico en la BD vía `mark_alert_deleted`; línea sin `|` → motivo `otro`) y **AÑADIR** (`AÑADIR WALLAPOP <nombre>` + bloque YAML de solo alertas, las fusiona con el config existente). `ADD_TOKEN = "AÑADIR WALLAPOP"`; `ADD_TOKEN_IMAP = "ADIR WALLAPOP"` (subcadena ASCII para la búsqueda IMAP, evita el problema de codificación de la Ñ). `_extract_added_alerts()` parsea el bloque de alertas recortando líneas de firma hasta que valida; `_apply_add()` carga el config existente, añade las alertas nuevas deduplicando por nombre en minúsculas (backup + escritura atómica, preserva el resto de campos); `_process_add()` orquesta extracción + fusión + respuesta con la lista de alertas activas actualizada. Si el usuario no tiene config todavía, responde pidiendo crear uno primero con la pestaña "Crear/editar". Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
 | `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `sleep_hours`, `reply_confirmation` y **sección `llm`** (cascada, modelos por proveedor, claves y `cooldown_seconds`, comunes a todos los usuarios). **Nunca lo tocan los correos entrantes.** |
 | `configs/<user_id>.yaml` | Un config por usuario (ej. `dario.yaml`). El filtro de IA es un único `use_ai: true/false`; el orden/modelos del LLM viven en `bot_settings.yaml`. En la BD cada alerta va como `user_id/nombre`. |
 
@@ -176,15 +176,18 @@ operaciones incrementales sobre las alertas de un usuario:
   preservando intacto el resto del config.
 - Si el usuario no tiene config todavía (primera vez), el bot responde
   pidiendo crear uno primero con la pestaña "Crear/editar" del formulario.
-- La pestaña **"Añadir alertas"** del formulario (v18) genera este correo
+- La pestaña **"Añadir alertas"** del formulario (v20) genera este correo
   desde su propia lista de tarjetas, independiente de la de creación.
 
 **Borrar**:
 - Asunto `BORRAR WALLAPOP <nombre>`, cuerpo con `----- ALERTAS A ELIMINAR -----`
-  y un nombre de alerta por línea (o `TODAS`).
+  y una línea `<nombre> | <motivo>` por alerta (o `TODAS | <motivo>`). Motivos:
+  `comprado`/`ya_no_interesa`/`duplicada`/`otro`. RETROCOMPAT: una línea sin `|`
+  (correos antiguos en el buzón) se trata como motivo `otro`.
 - `config_inbox._apply_delete()` quita esas alertas del YAML del usuario (backup
-  + escritura atómica, preservando el resto). `TODAS` deja la lista vacía (en
-  pausa) sin borrar el archivo.
+  + escritura atómica, preservando el resto) y marca el histórico en la BD
+  (`database.mark_alert_deleted("<user_id>/<nombre>", motivo)`, no borra filas).
+  `TODAS` deja la lista vacía (en pausa) sin borrar el archivo.
 - La pestaña **"Eliminar alertas"** del formulario genera ese correo.
 
 Las confirmaciones del bot (aplicar, añadir y borrar) incluyen siempre la
@@ -377,10 +380,10 @@ en CI se pierden a propósito: el historial git ES el backup.
 
 ### Archivo final
 
-**`02_Herramienta/wallapop_config_v18.html`** — autocontenido, vanilla JS sin
-build. Reemplaza a v15/v17 (conservadas como histórico).
+**`02_Herramienta/wallapop_config_v20.html`** — autocontenido, vanilla JS sin
+build. Reemplaza a v15/v17/v18/v19 (conservadas como histórico).
 
-### Secciones del formulario (v18)
+### Secciones del formulario (v20)
 
 | Sección | Contenido |
 |---|---|
@@ -388,7 +391,7 @@ build. Reemplaza a v15/v17 (conservadas como histórico).
 | Cargar | Cargar un `config.yaml` existente para editar |
 | Pestaña 1 — Crear/editar | Zona y entrega (accesos rápidos, buscador Nominatim, slider radio, en persona/envío) · Lista de juegos (`renderGameCards`, nombre/keywords/precio/want/exclude) · Filtro IA on/off · Genera y envía `ALERTA WALLAPOP <nombre>` (reemplaza el config completo) |
 | Pestaña 2 — Añadir alertas | Lista de tarjetas independiente (`state.addGames`, mismo `renderGameCards` reutilizado) · Genera y envía `AÑADIR WALLAPOP <nombre>` con solo el bloque `alerts:` (`buildAlertsYAML`), se fusiona con el config existente sin tocarlo |
-| Pestaña 3 — Eliminar alertas | Genera y envía `BORRAR WALLAPOP <nombre>` con la lista de nombres a quitar (o `TODAS`) |
+| Pestaña 3 — Eliminar alertas | Genera y envía `BORRAR WALLAPOP <nombre>` con una línea `<nombre> \| <motivo>` por alerta marcada (o `TODAS \| <motivo>`); cada fila lleva un `<select>` de motivo (comprado / ya no interesa / duplicada / otro) |
 
 > El campo "Comprobar cada X minutos" (frecuencia local) se eliminó en v18:
 > no tiene efecto corriendo en GitHub Actions (cron horario fijo).
@@ -535,7 +538,9 @@ delivery:
 | v14 | Textos pulidos: "wallabot Alerts", subtítulo, placeholders con ejemplos reales, color `--gold` → turquesa |
 | v15 | Zona rediseñada: accesos rápidos (Valencia / Tavernes / Palomares) + buscador Nominatim + slider radio 0-50 km + opciones de entrega. Backend: `scraper.py` captura `is_shippable`/`lat`/`lon`; `main.py` aplica filtro post-hoc con `_delivery_ok` + `_haversine_km`. Config: `location.radius_km` + bloque `delivery`. |
 | v17 | Versión intermedia (histórico). |
-| v18 | Selección de usuario vía `<select id="who">` hardcodeado (Darío / Marc) en vez de campos de nombre/correo libres (añadir usuarios requiere editar la constante `USERS` en el HTML Y ejecutar `manage.py add-user`); eliminado el campo "Comprobar cada X minutos" (irrelevante en Actions); nueva tercera pestaña **"Añadir alertas"** con su propia lista de tarjetas (`state.addGames`) que envía correos `AÑADIR WALLAPOP <nombre>` con solo el bloque YAML de alertas; `renderGames` refactorizado en `renderGameCards(boxId, games, afterChange)` compartido entre pestañas de crear y añadir; `buildAlertsYAML(games)` extraída de `buildYAML` para reutilizar; las pestañas ahora cubren tres vistas (crear / añadir / eliminar). ← **versión actual** |
+| v18 | Selección de usuario vía `<select id="who">` hardcodeado (Darío / Marc) en vez de campos de nombre/correo libres (añadir usuarios requiere editar la constante `USERS` en el HTML Y ejecutar `manage.py add-user`); eliminado el campo "Comprobar cada X minutos" (irrelevante en Actions); nueva tercera pestaña **"Añadir alertas"** con su propia lista de tarjetas (`state.addGames`) que envía correos `AÑADIR WALLAPOP <nombre>` con solo el bloque YAML de alertas; `renderGames` refactorizado en `renderGameCards(boxId, games, afterChange)` compartido entre pestañas de crear y añadir; `buildAlertsYAML(games)` extraída de `buildYAML` para reutilizar; las pestañas ahora cubren tres vistas (crear / añadir / eliminar). |
+| v19 | Fondo decorativo enriquecido: motivos de juegos de mesa en SVG line-art (dados, brújula, triskel/triquetra/dolmen del Inis, cañón, hoja, drakkar, jarra...), anclados por % al viewport para verse en cualquier proporción. Solo estética, sin cambios de lógica. |
+| v20 | Pestaña **"Eliminar alertas"**: cada alerta marcada lleva un `<select>` de motivo (comprado / ya no interesa / duplicada / otro); el correo emite `<nombre> \| <motivo>` por línea (o `TODAS \| <motivo>`). Alimenta el histórico de borrado en la BD (`deleted_reason`/`deleted_at`). ← **versión actual** |
 
 > **Backend (jun 2026), sin cambio de HTML hasta v18:** multi-config (`configs/<user_id>.yaml`,
 > BD con prefijo por usuario) + extracción automática del buzón (`config_inbox.py`

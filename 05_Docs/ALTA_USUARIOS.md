@@ -64,7 +64,7 @@ python3 manage.py list
 ### 2. Formulario HTML (recomendado)
 
 Para que esa persona pueda elegir su nombre en el desplegable del formulario,
-edita `02_Herramienta/wallapop_config_v18.html` (la última versión) en **dos
+edita `02_Herramienta/wallapop_config_v20.html` (la última versión) en **dos
 puntos**:
 
 - El array `USERS` (busca `const USERS = [`):
@@ -187,7 +187,7 @@ Lo que esa alerta dejó en `alerts.db` queda huérfano pero es inofensivo.
 
 - [ ] `manage.py add-user <correo> <user_id>` (lista blanca)
 - [ ] `manage.py list` para verificar
-- [ ] Añadir el usuario a `USERS` en `wallapop_config_v18.html`
+- [ ] Añadir el usuario a `USERS` en `wallapop_config_v20.html`
 - [ ] Añadir su `<option>` al `<select id="who">`
 - [ ] La persona envía su primer formulario **desde el correo autorizado**
 - [ ] Llega "Configuración aplicada ✓" → alta completada

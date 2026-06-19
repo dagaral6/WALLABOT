@@ -52,6 +52,7 @@ from email.utils import parseaddr
 import yaml
 
 import notifier
+import database
 
 log = logging.getLogger("inbox")
 
@@ -196,13 +197,20 @@ def _extract_yaml_block(body):
 
 
 def _extract_delete_names(body):
-    """Nombres de alerta a eliminar, tomados tras '----- ALERTAS A ELIMINAR -----'
-    (uno por linea). Devuelve la cadena "ALL" si pide borrarlas todas, una lista
-    de nombres, o None si no encuentra el marcador."""
+    """Alertas a eliminar, tomadas tras '----- ALERTAS A ELIMINAR -----'
+    (una por linea, formato "<nombre> | <motivo>").
+
+    Devuelve:
+      - None                       si no encuentra el marcador.
+      - ("ALL", motivo)            si pide borrarlas todas.
+      - [(nombre, motivo), ...]    en caso normal (lista, posiblemente vacia).
+
+    RETROCOMPAT: una linea sin "|" (correos antiguos en el buzon, o gente que
+    no actualizo el HTML) se trata como motivo "otro" en vez de fallar."""
     m = DELETE_MARKER_RE.search(body)
     if not m:
         return None
-    names = []
+    pairs = []
     for raw in body[m.end():].split("\n"):
         s = raw.strip()
         if not s or s.startswith("#"):
@@ -210,13 +218,18 @@ def _extract_delete_names(body):
         if s == "--" or re.match(r"^-{2,}\s*$", s):   # firma / separador -> fin
             break
         s = re.sub(r"^[-*\u2022]\s+", "", s)           # quita viñeta "- ", "* "
-        s = s.strip().strip('"').strip("'").strip()
-        if not s:
+        if "|" in s:                                   # "nombre | motivo"
+            nombre, _, motivo = s.partition("|")
+            motivo = motivo.strip().lower() or "otro"
+        else:                                          # formato antiguo sin motivo
+            nombre, motivo = s, "otro"
+        nombre = nombre.strip().strip('"').strip("'").strip()
+        if not nombre:
             continue
-        if s.lower() in _ALL_TOKENS:
-            return "ALL"
-        names.append(s)
-    return names
+        if nombre.lower() in _ALL_TOKENS:
+            return ("ALL", motivo)
+        pairs.append((nombre, motivo))
+    return pairs
 
 
 def _schema_problems(d):
@@ -328,17 +341,35 @@ def _apply_delete(user_id, names, dry_run=False):
         return None, None, []
 
     current = data.get("alerts") or []
-    if names == "ALL":
+
+    # 'names' puede ser ("ALL", motivo) o [(nombre, motivo), ...]. Normalizamos a
+    # is_all + motivo unico (caso TODAS) o a lista de nombres + motivo por nombre.
+    if isinstance(names, tuple) and names and names[0] == "ALL":
+        is_all, all_reason = True, (names[1] if len(names) > 1 else "otro")
+        name_list, reason_by_name = [], {}
+    elif names == "ALL":                       # compat: "ALL" pelado
+        is_all, all_reason = True, "otro"
+        name_list, reason_by_name = [], {}
+    else:
+        is_all, all_reason = False, "otro"
+        name_list, reason_by_name = [], {}
+        for item in names:
+            nombre, motivo = (item if isinstance(item, (list, tuple))
+                              else (item, "otro"))
+            name_list.append(nombre)
+            reason_by_name[str(nombre).strip().lower()] = motivo
+
+    if is_all:
         removed = [str(a.get("name", "?")) for a in current]
         remaining, not_found = [], []
     else:
-        targets = {n.strip().lower() for n in names}
+        targets = {n.strip().lower() for n in name_list}
         remaining = [a for a in current
                      if str(a.get("name", "")).strip().lower() not in targets]
         removed = [str(a.get("name", "?")) for a in current
                    if str(a.get("name", "")).strip().lower() in targets]
         have = {str(a.get("name", "")).strip().lower() for a in current}
-        not_found = [n for n in names if n.strip().lower() not in have]
+        not_found = [n for n in name_list if n.strip().lower() not in have]
 
     if not removed:                       # nada que borrar: no tocamos el archivo
         return [], [str(a.get("name", "?")) for a in current], not_found
@@ -366,6 +397,18 @@ def _apply_delete(user_id, names, dry_run=False):
     with open(tmp, "w", encoding="utf-8", newline="\n") as f:
         f.write(header + body)
     os.replace(tmp, target)
+
+    # Historico: marcamos (no borramos) las filas de seen_items de cada alerta
+    # eliminada con su motivo. alert_name lleva el prefijo "<user_id>/<nombre>".
+    for real_name in removed:
+        motivo = all_reason if is_all else \
+            reason_by_name.get(real_name.strip().lower(), "otro")
+        try:
+            database.mark_alert_deleted("%s/%s" % (user_id, real_name), motivo)
+        except Exception as e:
+            log.warning("No se pudo marcar el historico de '%s/%s': %s",
+                        user_id, real_name, e)
+
     return removed, [str(a.get("name", "?")) for a in remaining], not_found
 
 

@@ -138,7 +138,8 @@ El formulario tiene tres pestañas que abren un borrador de Gmail a
 config completo, asunto `ALERTA WALLAPOP <nombre>`), **Añadir alertas**
 (fusiona alertas nuevas con el config existente sin tocar el resto, asunto
 `AÑADIR WALLAPOP <nombre>`) y **Eliminar alertas** (asunto
-`BORRAR WALLAPOP <nombre>`). El bot revisa ese buzón cada 5 minutos
+`BORRAR WALLAPOP <nombre>`, cada alerta con su motivo: comprado / ya no
+interesa / duplicada / otro). El bot revisa ese buzón cada 5 minutos
 (`bot_settings.yaml` → `inbox_check_minutes`):
 
 - Solo acepta remitentes de la **lista blanca**: `bot_settings.yaml` →
@@ -182,7 +183,7 @@ python3 manage.py remove-user marc
 Alta completa, paso a paso:
 1. `add-user <correo> <user_id>` autoriza ese correo.
 2. (Opcional pero recomendado) añade el usuario al array `USERS` y una
-   `<option>` al `<select id="who">` de `02_Herramienta/wallapop_config_v18.html`
+   `<option>` al `<select id="who">` de `02_Herramienta/wallapop_config_v20.html`
    para que pueda elegir su nombre en el desplegable.
 3. Esa persona rellena el formulario y lo envía a `wallabot01@gmail.com`
    **desde ese correo**.

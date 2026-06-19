@@ -10,8 +10,11 @@ y la decisión tomada (keep/reject). Así:
 """
 
 import os
+import logging
 import sqlite3
 from contextlib import contextmanager
+
+log = logging.getLogger(__name__)
 
 # En despliegues cloud (Railway), DATA_DIR apunta al volumen persistente.
 DB_PATH = os.path.join(
@@ -33,7 +36,14 @@ CREATE TABLE IF NOT EXISTS seen_items (
 """
 
 # Columnas que deben existir (para migrar bases antiguas sin perder datos).
-_REQUIRED_COLS = {"category": "TEXT", "decision": "TEXT"}
+# deleted_reason/deleted_at marcan el HISTORICO de alertas eliminadas: las filas
+# no se borran, solo se anotan (base para una futura capa de consulta).
+_REQUIRED_COLS = {"category": "TEXT", "decision": "TEXT",
+                  "deleted_reason": "TEXT", "deleted_at": "TEXT"}
+
+# Motivos validos al eliminar una alerta (fuente unica de verdad; el HTML y
+# config_inbox.py usan estos mismos valores internos).
+VALID_DELETE_REASONS = ("comprado", "ya_no_interesa", "duplicada", "otro")
 
 
 @contextmanager
@@ -143,3 +153,29 @@ def delete_items(alert_name, item_ids, db_path=None):
         c.executemany(
             "DELETE FROM seen_items WHERE alert_name = ? AND item_id = ?",
             [(alert_name, iid) for iid in item_ids])
+
+
+def mark_alert_deleted(alert_name, reason, db_path=None):
+    """Marca (NO borra) el HISTORICO de una alerta eliminada por el usuario.
+    Anota deleted_reason/deleted_at en TODAS las filas de 'alert_name', sea cual
+    sea su decision ('keep' o 'reject'): asi conservamos qué anuncios se vieron
+    y por qué dejó de interesar la alerta (comprado, ya_no_interesa...).
+
+    'alert_name' viene con el prefijo "<user_id>/<nombre>", igual que en el resto
+    del código. Si 'reason' no es un motivo válido, se guarda 'otro' y se avisa.
+    Devuelve el número de filas marcadas."""
+    db_path = db_path or DB_PATH
+    init_db(db_path)                       # garantiza columnas deleted_* (migra)
+
+    r = (reason or "").strip().lower()
+    if r not in VALID_DELETE_REASONS:
+        log.warning("Motivo de borrado no válido %r para '%s'; uso 'otro'.",
+                    reason, alert_name)
+        r = "otro"
+
+    with _conn(db_path) as c:
+        cur = c.execute(
+            "UPDATE seen_items SET deleted_reason = ?, deleted_at = datetime('now') "
+            "WHERE alert_name = ?",
+            (r, alert_name))
+        return cur.rowcount
