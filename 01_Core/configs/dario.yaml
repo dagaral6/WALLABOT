@@ -1,5 +1,5 @@
-# Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-19 17:41:42 | Nuevas: Root
+# Config de 'dario' actualizada automaticamente (borrado de alertas).
+# 2026-06-19 17:48:18 | Eliminadas: Root
 
 email:
   smtp_host: smtp.gmail.com
@@ -24,7 +24,4 @@ alerts:
 - name: Frostpunk (hasta 90€)
   keywords: frostpunk
   max_price: 90
-- name: Root
-  keywords: root
-  max_price: 35
 lote_bypass_price: true
