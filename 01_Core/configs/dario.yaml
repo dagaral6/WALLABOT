@@ -1,31 +1,29 @@
-# Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-19 18:30:02 | Nuevas: Catán Ciudades y Caballeros (hasta 25€)
+# Config de 'dario' aplicada automaticamente desde el buzon.
+# Remitente: dariogarciaalvarez01@gmail.com | Nombre en el formulario: Darío
+# Aplicada: 2026-06-19 21:02:12
 
 email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  sender: wallabot01@gmail.com
-  recipient: dariogarciaalvarez01@gmail.com
+  sender: "wallabot01@gmail.com"
+  recipient: "dariogarciaalvarez01@gmail.com"
+
 location:
   latitude: 39.4699
   longitude: -0.3763
   radius_km: 25
+
 delivery:
   in_person: true
   shipping: true
+
 use_ai: true
+
 alerts:
-- name: Las Estaciones de Inis (hasta 35€) solo expansión
-  keywords: inis estaciones
-  max_price: 35
-  want:
-  - expansion
-- name: Frostpunk (hasta 90€)
-  keywords: frostpunk
-  max_price: 90
-- name: Catán Ciudades y Caballeros (hasta 25€)
-  keywords: catan ciudades caballeros
-  max_price: 25
-  want:
-  - expansion
+  - name: "Frostpunk (hasta 90€)"
+    keywords: "frostpunk"
+    max_price: 90
+    exclude: ["playstation", "ps4", "ps5", "videojuego", "sidequest",
+"side", "quest"]
+
 lote_bypass_price: true
