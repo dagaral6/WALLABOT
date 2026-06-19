@@ -1,32 +1,30 @@
-# Config de 'dario' aplicada automaticamente desde el buzon.
-# Remitente: dariogarciaalvarez01@gmail.com | Nombre en el formulario: Darío
-# Aplicada: 2026-06-19 17:36:14
+# Config de 'dario' actualizada automaticamente (alertas agregadas).
+# 2026-06-19 17:41:42 | Nuevas: Root
 
 email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  sender: "wallabot01@gmail.com"
-  app_password: "zbmj kkzj cezy shkg"
-  recipient: "dariogarciaalvarez01@gmail.com"
-
+  sender: wallabot01@gmail.com
+  app_password: zbmj kkzj cezy shkg
+  recipient: dariogarciaalvarez01@gmail.com
 location:
   latitude: 39.4699
   longitude: -0.3763
   radius_km: 25
-
 delivery:
   in_person: true
   shipping: true
-
 use_ai: true
-
 alerts:
-  - name: "Las Estaciones de Inis (hasta 35€) solo expansión"
-    keywords: "inis estaciones"
-    max_price: 35
-    want: ["expansion"]
-  - name: "Frostpunk (hasta 90€)"
-    keywords: "frostpunk"
-    max_price: 90
-
+- name: Las Estaciones de Inis (hasta 35€) solo expansión
+  keywords: inis estaciones
+  max_price: 35
+  want:
+  - expansion
+- name: Frostpunk (hasta 90€)
+  keywords: frostpunk
+  max_price: 90
+- name: Root
+  keywords: root
+  max_price: 35
 lote_bypass_price: true
