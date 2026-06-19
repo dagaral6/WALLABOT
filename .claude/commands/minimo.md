@@ -35,3 +35,10 @@ Reglas:
 \* Ejecuta validaciones relevantes si procede.
 
 \* Al final dame resumen, archivos tocados, comandos ejecutados, validación, riesgos y diff/resumen de cambios.
+
+## Impacto en documentación
+
+- ¿Este cambio requiere actualizar documentación? Sí/No.
+- Si sí, archivos actualizados:
+  - `ruta/archivo`: motivo.
+- Si no, motivo por el que no aplica.

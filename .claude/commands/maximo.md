@@ -260,3 +260,10 @@ Trabaja de forma autónoma mientras el objetivo esté claro y los cambios sean s
 No pidas permiso para cada pequeño paso.
 
 Detente y pregunta solo ante decisiones de alto impacto, riesgo destructivo, credenciales, borrado de datos o ambigüedad funcional real.
+
+## Impacto en documentación
+
+- ¿Este cambio requiere actualizar documentación? Sí/No.
+- Si sí, archivos actualizados:
+  - `ruta/archivo`: motivo.
+- Si no, motivo por el que no aplica.
