@@ -22,7 +22,8 @@ con filtrado inteligente de base / expansión / componentes / lotes.
 - Recupera todos los resultados disponibles siguiendo la paginación de la API
   (antes solo obtenía la primera página, que podía tener solo 3-4 anuncios).
 - **Multi-usuario**: cada persona configura sus alertas en el formulario HTML
-  y su config llega y se aplica sola por correo (un config y un correo de
+  (publicado en GitHub Pages: https://dagaral6.github.io/WALLABOT/) y su
+  config llega y se aplica sola por correo (un config y un correo de
   avisos por usuario). El formulario tiene también una pestaña **"Eliminar
   alertas"** que envía una orden de borrado al bot.
 - **Descansa de madrugada**: por defecto no hace nada de **01:00 a 07:00**
@@ -30,7 +31,7 @@ con filtrado inteligente de base / expansión / componentes / lotes.
 
 ## Instalación (Windows / PowerShell)
 ```powershell
-cd C:\Users\Pc\Desktop\PROYECTOS\WALLAPOP\01_Core
+cd C:\Users\Pc\Desktop\PROYECTOS\WALLABOT\01_Core
 pip install -r requirements.txt
 ```
 

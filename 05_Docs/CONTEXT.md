@@ -16,7 +16,7 @@ Tiene dos partes:
 
 ## Estructura de carpetas
 
-**Raíz:** `C:\Users\Pc\Desktop\PROYECTOS\WALLAPOP\`
+**Raíz:** `C:\Users\Pc\Desktop\PROYECTOS\WALLABOT\`
 
 | Carpeta | Contenido |
 |---|---|
@@ -382,7 +382,10 @@ en CI se pierden a propósito: el historial git ES el backup.
 ### Archivo final
 
 **`02_Herramienta/wallapop_config_v20.html`** — autocontenido, vanilla JS sin
-build. Reemplaza a v15/v17/v18/v19 (conservadas como histórico).
+build. Reemplaza a v15/v17/v18/v19, que ya **no se conservan** en el repo
+(borradas; el histórico queda en `git log`, ver tabla más abajo). Copia
+publicada en GitHub Pages: `docs/index.html` (debe mantenerse idéntica a
+v20, ver `AI_WORKFLOWS.md`).
 
 ### Secciones del formulario (v20)
 

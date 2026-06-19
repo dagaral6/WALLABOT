@@ -6,6 +6,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 - `01_Core/`: backend Python.
 - `02_Herramienta/`: HTML configurador actual `wallapop_config_v20.html`.
+- `docs/index.html`: copia de v20 publicada en GitHub Pages (formulario público); debe mantenerse idéntica a v20.
 - `03_Diagnostico/`: scripts de diagnóstico y tests.
 - `05_Docs/`: documentación larga.
 - GitHub Actions ejecuta el bot cada hora y commitea `alerts.db` + `configs/`.
@@ -14,7 +15,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 - `main.py`: orquesta ciclos, sueño nocturno, multi-config, novedades, bajas, bajadas de precio y notificaciones.
 - `scraper.py`: API Wallapop + paginación.
-- `classifier.py`: reglas + LLM cascade + circuit breaker.
+- `classifier.py`: reglas + LLM cascade + circuit breaker + clasificación por lotes (`batch_size` en `bot_settings.yaml`, evita 429 en pasadas grandes).
 - `database.py`: SQLite `alerts.db`. Guarda histórico de alertas eliminadas sin borrar filas (`deleted_reason`/`deleted_at`, `mark_alert_deleted()`).
 - `notifier.py`: emails Gmail.
 - `config_inbox.py`: lee configs por correo (crear/añadir/borrar; el borrado lleva un motivo por alerta y marca el histórico en la BD).
