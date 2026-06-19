@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-19 18:24:26 | Nuevas: Catán Ciudades y Caballeros (hasta 25€)
+# 2026-06-19 18:30:02 | Nuevas: Catán Ciudades y Caballeros (hasta 25€)
 
 email:
   smtp_host: smtp.gmail.com
@@ -27,7 +27,6 @@ alerts:
 - name: Catán Ciudades y Caballeros (hasta 25€)
   keywords: catan ciudades caballeros
   max_price: 25
-  exclude:
-  - dados
-  - junior
+  want:
+  - expansion
 lote_bypass_price: true
