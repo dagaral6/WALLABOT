@@ -6,8 +6,9 @@ name: wallabot
 
 on:
   schedule:
-    # Cada hora, en el minuto 17 (los minutos "raros" sufren
-    # menos retraso que el minuto 0 en GitHub Actions).
+    # Cada 2 horas, en el minuto 33 (los minutos "raros" sufren
+    # menos retraso que el minuto 0 en GitHub Actions; cadencia reducida
+    # de cada hora a cada 2h para no agotar el presupuesto de Actions).
     - cron: "33 */2 * * *"
   workflow_dispatch: {}    # boton "Run workflow" para forzar una pasada
 

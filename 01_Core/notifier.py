@@ -100,9 +100,10 @@ def send_email(config, subject, html_body):
     try:
         with smtplib.SMTP(em["smtp_host"], em["smtp_port"], timeout=30) as srv:
             srv.starttls()
-            # La variable de entorno (cloud) tiene prioridad sobre el YAML.
+            # La variable de entorno (GitHub Secret) es la fuente real; el
+            # YAML de usuario ya no lleva contraseña (ver _schema_problems).
             srv.login(em["sender"],
-                      os.getenv("GMAIL_APP_PASSWORD") or em["app_password"])
+                      os.getenv("GMAIL_APP_PASSWORD") or em.get("app_password"))
             srv.sendmail(em["sender"], [em["recipient"]], msg.as_string())
         log.info("Email enviado: %s", subject)
         return True

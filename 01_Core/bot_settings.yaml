@@ -6,7 +6,9 @@ imap:
   host: imap.gmail.com
   port: 993
   user: wallabot01@gmail.com
-  app_password: "zbmj kkzj cezy shkg"
+  # Se rellena en runtime desde el Secret GMAIL_APP_PASSWORD (ver config_inbox.py).
+  # No hardcodear la contraseña real aquí: este archivo va al repo.
+  app_password: ""
 
 # Cada cuantos minutos se comprueba el buzon en busca de configs nuevas.
 inbox_check_minutes: 5

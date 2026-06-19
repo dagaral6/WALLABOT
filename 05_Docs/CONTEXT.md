@@ -354,7 +354,7 @@ password).
 Guía completa: `05_Docs/DEPLOY_GITHUB_ACTIONS.md`. Workflow:
 `.github/workflows/wallabot.yml`.
 
-El bot corre como tarea programada **cada hora (minuto 17)** en una
+El bot corre como tarea programada **cada 2 horas (minuto 33)** en una
 máquina efímera de GitHub: `config_inbox.py` (buzón) → `main.py --once`
 (ciclo completo) → `git add -A 01_Core` + commit + push del **estado**
 (`alerts.db` + `configs/`), que es como persiste entre ejecuciones. Sin
@@ -365,10 +365,10 @@ los overrides por entorno (`GMAIL_APP_PASSWORD`, `GROQ_API_KEY`,
 `bot_settings.yaml`, no en el workflow). `.gitignore`
 dejó de ignorar `alerts.db` a propósito.
 
-Claves operativas: presupuesto 2.000 min/mes en repo privado (~1.450
-consumidos a cadencia horaria; si se agota, GitHub pausa Actions hasta el
-mes siguiente); latencia real de avisos 30-90 min (cron de GitHub se
-retrasa en horas punta); pasada manual con "Run workflow" (Actions);
+Claves operativas: presupuesto 2.000 min/mes en repo privado (~725
+consumidos a cadencia de 2h; a cadencia horaria serían ~1.450; si se agota,
+GitHub pausa Actions hasta el mes siguiente); latencia real de avisos
+hasta ~2h + 30-90 min de posible retraso del cron de GitHub en horas punta; pasada manual con "Run workflow" (Actions);
 NO ejecutar `main.py` en local con el workflow activo (BDs divergen);
 `workflow_dispatch` disponible; concurrencia serializada (grupo
 `wallabot`). El paso `gate` salta las pasadas de 01:00–07:00 Madrid (ventana
@@ -403,10 +403,16 @@ v20, ver `AI_WORKFLOWS.md`).
 ### Constantes fijas (no visibles en el formulario)
 
 ```
-SENDER_EMAIL        = "wallabot01@gmail.com"
-SENDER_APP_PASSWORD = "zbmj kkzj cezy shkg"
-RECIPIENT_EMAIL     = "wallabot01@gmail.com"   ← destino del botón "Enviar a wallabot"
+SENDER_EMAIL    = "wallabot01@gmail.com"
+RECIPIENT_EMAIL = "wallabot01@gmail.com"   ← destino del botón "Enviar a wallabot"
 ```
+
+> **jun 2026 — quitado `SENDER_APP_PASSWORD` del HTML.** Estaba hardcodeada
+> en el JS, expuesta en texto plano en la página pública de GitHub Pages
+> (`docs/index.html`, visible con "ver código fuente" por cualquiera). El
+> YAML generado ya no lleva `email.app_password`: el backend resuelve la
+> contraseña SOLO vía el Secret `GMAIL_APP_PASSWORD` (`notifier.py`,
+> `config_inbox.py`). `_schema_problems()` ya no exige ese campo.
 
 ### Mecanismo de envío
 

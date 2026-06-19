@@ -2,11 +2,11 @@
 
 El bot corre como tarea programada en GitHub Actions: 100% gratis, sin
 tarjeta, sin servidor. A cambio, deja de ser un proceso continuo y pasa a
-ejecutarse **una vez cada hora**.
+ejecutarse **una vez cada 2 horas**.
 
 ## Como funciona
 
-Cada hora (minuto 17), GitHub arranca una maquina limpia que:
+Cada 2 horas (minuto 33), GitHub arranca una maquina limpia que:
 1. Descarga el repo (que contiene el estado: `alerts.db` + `configs/`)
 2. Instala Python 3.12 y dependencias (con cache, ~40 s)
 3. `config_inbox.py` — revisa el buzon de wallabot01, aplica configs
@@ -59,7 +59,8 @@ Actions hasta el mes siguiente** (no cobra): el bot quedaria mudo.
 
 - Ver consumo: github.com -> Settings (perfil) -> Billing -> Usage.
 - Cambiar la cadencia: editar el `cron` en `wallabot.yml`. Ejemplos:
-  - `"17 * * * *"` cada hora (actual, recomendado)
+  - `"33 */2 * * *"` cada 2 horas (actual, recomendado)
+  - `"17 * * * *"` cada hora (~1.450 min/mes, mas cerca del limite de 2.000)
   - `"*/30 8-23 * * *"` cada 30 min solo de dia (~justo, vigilar consumo)
 - NO bajar de 30 min: el presupuesto no da y GitHub ademas retrasa o
   salta ejecuciones en horas de carga.

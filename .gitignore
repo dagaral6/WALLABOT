@@ -8,6 +8,10 @@ __pycache__/
 CLAUDE.local.md
 *.tmp
 
+# Claves API reales (uso local). No debe ir al repo: ya estuvo trackeado con
+# claves en texto plano, sacado el jun 2026 (ver AI_BRIEF.md / CONTEXT.md).
+APIS.txt
+
 # NOTA: 01_Core/alerts.db y 01_Core/configs/ SI van al repo a proposito:
 # son el estado del bot, y el workflow de GitHub Actions los commitea
 # en cada pasada para persistirlos entre ejecuciones.

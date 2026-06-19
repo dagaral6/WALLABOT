@@ -502,7 +502,6 @@
 "use strict";
 /* ===================== Constantes (no visibles) ========================== */
 const SENDER_EMAIL = "wallabot01@gmail.com";
-const SENDER_APP_PASSWORD = "zbmj kkzj cezy shkg";
 const BOT_INBOX = "wallabot01@gmail.com";   // a dónde se envía el correo (buzón del bot)
 const SMTP_HOST = "smtp.gmail.com", SMTP_PORT = 587;
 
@@ -609,7 +608,6 @@ function buildYAML(s){
   L.push("  smtp_host: " + SMTP_HOST);
   L.push("  smtp_port: " + SMTP_PORT);
   L.push("  sender: " + q(SENDER_EMAIL));
-  L.push("  app_password: " + q(SENDER_APP_PASSWORD));
   L.push("  recipient: " + q(s.recipient));
   L.push("");
   L.push("location:");

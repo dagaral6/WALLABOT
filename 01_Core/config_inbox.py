@@ -240,8 +240,8 @@ def _schema_problems(d):
     em = d.get("email") or {}
     if not isinstance(em, dict) or not str(em.get("recipient") or "").strip():
         p.append("email.recipient")
-    if not (em.get("sender") and em.get("app_password")):
-        p.append("email.sender/app_password")
+    if not em.get("sender"):
+        p.append("email.sender")
     loc = d.get("location") or {}
     if not isinstance(loc, dict) or loc.get("latitude") is None \
             or loc.get("longitude") is None:

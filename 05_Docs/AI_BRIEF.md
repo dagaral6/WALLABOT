@@ -9,7 +9,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 - `docs/index.html`: copia de v20 publicada en GitHub Pages (formulario público); debe mantenerse idéntica a v20.
 - `03_Diagnostico/`: scripts de diagnóstico y tests.
 - `05_Docs/`: documentación larga.
-- GitHub Actions ejecuta el bot cada hora y commitea `alerts.db` + `configs/`.
+- GitHub Actions ejecuta el bot cada 2 horas y commitea `alerts.db` + `configs/`.
 
 ## Backend principal
 
