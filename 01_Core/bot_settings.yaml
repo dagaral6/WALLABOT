@@ -66,7 +66,8 @@ reply_confirmation: true
 #   openrouter    -> openrouter.ai               (OPENROUTER_API_KEY) modelos ':free', 50/dia
 #   githubmodels  -> PAT con permiso models:read (GH_MODELS_TOKEN)
 llm:
-  cascade: [gemini, groq, rules]
+  cascade: [gemini, groq, cerebras, openrouter, githubmodels, rules]
+
 
   # Modelo por proveedor (si se omite uno, se usa su valor por defecto).
   models:
