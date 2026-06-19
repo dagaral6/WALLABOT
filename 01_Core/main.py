@@ -183,10 +183,15 @@ def _delivery_ok(item, config):
     return False
 
 
-def evaluate(item, alert, cfg):
+def evaluate(item, alert, cfg, cat_cache=None):
     """
     Decide sobre un anuncio NUEVO. Devuelve (decision, category) con
     decision in {'keep', 'reject'}.
+
+    cat_cache (opcional): dict {item_id: categoria} precalculado POR LOTES en
+    process_alert. Si el anuncio está ahí, se usa esa categoría en vez de
+    llamar al LLM uno a uno. Sin cat_cache el comportamiento es el de siempre
+    (clasificación por anuncio), para no romper llamadas directas ni tests.
 
     Árbol de decisión:
       ¿El TÍTULO contiene alguna palabra del juego buscado?
@@ -216,7 +221,10 @@ def evaluate(item, alert, cfg):
 
     # ----- RAMA 1: el título coincide -> el juego es correcto -----
     if classifier.title_matches(target, title):
-        category = classifier.classify_category(title, desc, use_llm, model)
+        if cat_cache is not None and item.get("id") in cat_cache:
+            category = cat_cache[item["id"]]      # precalculado por lotes
+        else:
+            category = classifier.classify_category(title, desc, use_llm, model)
 
         # Si el LLM no decide (o está apagado): aceptar como base, según
         # tu preferencia de no perder anuncios cuyo título sí coincide.
@@ -274,9 +282,25 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     candidates = [it for it in candidates if _delivery_ok(it, config)]
     n_descartados_entrega = n_candidates - len(candidates)
 
+    # Pre-clasificación POR LOTES (Tarea 1): los anuncios cuyo título coincide
+    # se clasifican agrupados (1 llamada LLM por lote, no por anuncio). Esto
+    # recorta drásticamente las peticiones/minuto en pasadas grandes y evita
+    # disparar 429 en todos los proveedores a la vez. El resto de evaluate()
+    # (idioma, precio, want, rama de lotes) no cambia. Como process_alert se
+    # ejecuta por (usuario, alerta), el lote es siempre de un único usuario.
+    target = alert["keywords"]
+    use_llm = _use_ai(config)
+    model = classifier.get_ollama_model()
+    match_items = [it for it in candidates
+                   if classifier.title_matches(target, it.get("title", ""))]
+    cats = classifier.classify_categories_batch(
+        [(it.get("title", ""), it.get("description", "")) for it in match_items],
+        use_llm, model)
+    cat_cache = {it["id"]: c for it, c in zip(match_items, cats)}
+
     decided, new_kept = [], []
     for it in candidates:
-        decision, category = evaluate(it, alert, config)
+        decision, category = evaluate(it, alert, config, cat_cache)
         decided.append((it, category, decision))
         if decision == "keep":
             it["category"] = category

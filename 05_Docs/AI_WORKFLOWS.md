@@ -33,9 +33,9 @@
 ## Cambio en clasificador
 
 1. Revisar `classifier.py`.
-2. Revisar tests `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`.
+2. Revisar tests `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_batch.py`.
 3. Mantener fail-fast ante 429.
-4. Mantener fallback `rules`.
+4. Mantener fallback `rules` (también en la clasificación por lotes: índice ausente o JSON inválido → reglas, nunca se descarta).
 5. Ante duda, preferir false positive a anuncio perdido.
 6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`.
 

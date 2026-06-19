@@ -46,7 +46,7 @@ Tiene dos partes:
 | `database.py` | SQLite (`alerts.db`, tabla `seen_items`). Guarda categoría **y precio** por anuncio. Funciones: `get_known_ids`, `get_kept_rows`, **`get_rejected_rows`**, `add_items`, `delete_items`, **`update_prices`**, **`promote_to_keep`** (recuperar un rechazado a `keep` actualizando precio), **`mark_alert_deleted`** (marca el histórico de una alerta eliminada en las columnas `deleted_reason`/`deleted_at`, sin borrar filas; migración suave por `_REQUIRED_COLS`). Motivos válidos en `VALID_DELETE_REASONS` (`comprado`/`ya_no_interesa`/`duplicada`/`otro`). |
 | `notifier.py` | Gmail SMTP. `build_html()` arma tres secciones: novedades, **⬇️ bajada de precio** (precio anterior tachado → nuevo; marca "ahora dentro de tu presupuesto" si se recupera) y bajas. `notify(..., price_drops=None)`. Toda la config se lee de `config["email"]`. |
 | `config_inbox.py` | Extractor IMAP. Tres tipos de correo: **ALERTA** (`ALERTA WALLAPOP <nombre>` + YAML completo tras `----- config_x.yaml -----`, crea/reemplaza el config), **BORRAR** (`BORRAR WALLAPOP <nombre>` + líneas `<nombre> | <motivo>` tras `----- ALERTAS A ELIMINAR -----`, o `TODAS | <motivo>`; al borrar marca el histórico en la BD vía `mark_alert_deleted`; línea sin `|` → motivo `otro`) y **AÑADIR** (`AÑADIR WALLAPOP <nombre>` + bloque YAML de solo alertas, las fusiona con el config existente). `ADD_TOKEN = "AÑADIR WALLAPOP"`; `ADD_TOKEN_IMAP = "ADIR WALLAPOP"` (subcadena ASCII para la búsqueda IMAP, evita el problema de codificación de la Ñ). `_extract_added_alerts()` parsea el bloque de alertas recortando líneas de firma hasta que valida; `_apply_add()` carga el config existente, añade las alertas nuevas deduplicando por nombre en minúsculas (backup + escritura atómica, preserva el resto de campos); `_process_add()` orquesta extracción + fusión + respuesta con la lista de alertas activas actualizada. Si el usuario no tiene config todavía, responde pidiendo crear uno primero con la pestaña "Crear/editar". Valida remitente, hace backup y escritura atómica. La confirmación SIEMPRE incluye la lista de alertas activas (copiable). Ejecutable suelto (`python config_inbox.py [--dry-run]`). |
-| `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `sleep_hours`, `reply_confirmation` y **sección `llm`** (cascada, modelos por proveedor, claves y `cooldown_seconds`, comunes a todos los usuarios). **Nunca lo tocan los correos entrantes.** |
+| `bot_settings.yaml` | Ajustes del bot: credenciales IMAP, lista blanca `correo → user_id`, `inbox_check_minutes`, `sleep_hours`, `reply_confirmation` y **sección `llm`** (cascada, modelos por proveedor, claves, `cooldown_seconds` y `batch_size`, comunes a todos los usuarios). **Nunca lo tocan los correos entrantes.** |
 | `configs/<user_id>.yaml` | Un config por usuario (ej. `dario.yaml`). El filtro de IA es un único `use_ai: true/false`; el orden/modelos del LLM viven en `bot_settings.yaml`. En la BD cada alerta va como `user_id/nombre`. |
 
 ### Principios de clasificación
@@ -336,7 +336,8 @@ cascada, p. ej. `groq,cerebras,gemini,openrouter,githubmodels,rules`),
 `LLM_PROVIDER` (compat: si no hay `LLM_CASCADE`, equivale a `<proveedor>,rules`),
 `LLM_MODEL`, `GROQ_API_KEY` / `CEREBRAS_API_KEY` / `GEMINI_API_KEY` /
 `OPENROUTER_API_KEY` / `GH_MODELS_TOKEN` / `LLM_API_KEY`+`LLM_BASE_URL`,
-`LLM_MIN_INTERVAL`, `LLM_COOLDOWN`, `SLEEP_HOURS_ENABLED`.
+`LLM_MIN_INTERVAL`, `LLM_COOLDOWN`, `LLM_BATCH_SIZE` (anuncios por llamada al
+clasificar, def. 25), `SLEEP_HOURS_ENABLED`.
 
 Sin `DATA_DIR`, el comportamiento local es idéntico al de siempre. En
 Railway el LLM corre en la nube (`LLM_PROVIDER=groq` recomendado, capa
@@ -516,6 +517,7 @@ delivery:
 | `test_railway_paths.py` | Simula Railway en local (define `DATA_DIR` y overrides de entorno) y verifica rutas, siembra del volumen y lista blanca. Sin red. |
 | `test_llm_cloud.py` | Verifica sin red el adaptador LLM multi-proveedor (groq/gemini/ollama): endpoints, cabeceras, modelo efectivo, modo JSON, mapeo de mensajes a Gemini, parseo tolerante y reintento ante 429. |
 | `test_cascade.py` | Verifica sin red la **cascada**: que al fallar un proveedor se pasa al siguiente, que al agotarse cae en reglas (`unknown`), y que el circuit breaker saca de la rotación a un proveedor en cooldown. |
+| `test_batch.py` | Verifica sin red la **clasificación por lotes**: agrupa varios anuncios en una sola llamada, índice omitido o JSON mal formado → ese anuncio cae a reglas (no se descarta), y Cerebras integrado en la cascada con fail-fast en 429. |
 | `test_add_alerts.py` | Verifica sin red el comando **AÑADIR**: fusión (`_apply_add`, dedupe por nombre en minúsculas, preserva el resto del config) y extracción (`_extract_added_alerts`, recorte de firma hasta YAML válido), incluyendo el caso de usuario sin config previo. |
 
 ---
@@ -608,6 +610,9 @@ delivery:
   `responseSchema` nativo. El orden por defecto pone **Groq primero** y vive en
   `bot_settings.yaml` (sección `llm`); la cascada y los proveedores están
   cubiertos por `test_cascade.py`, `test_llm_cloud.py` y `test_new_providers.py`.
+  Al **clasificar categoría** (RAMA 1), `main.py` agrupa los anuncios en lotes
+  (`classify_categories_batch`, ver changelog) → una llamada por lote en vez de
+  por anuncio; `_ask()` y el circuit breaker actúan igual, ahora por lote.
 
 - **Estado del bot versionado en git (patrón commit-back)**: para GitHub
   Actions, `alerts.db` y `configs/` viven en el propio repo y el workflow
@@ -623,6 +628,17 @@ delivery:
   breaker inmediatamente y avanza al siguiente proveedor sin esperar; los
   5xx solo dan un reintento corto. Evita bloquear el ciclo completo cuando
   la capa gratuita está saturada.
+
+- **Clasificación por lotes (jun 2026)**: continuación del fix fail-fast. La
+  RAMA 1 de `evaluate()` ya no hace una llamada LLM por anuncio: los anuncios
+  cuyo título coincide se agrupan (`classifier.classify_categories_batch`, 25
+  por defecto vía `LLM_BATCH_SIZE` / `llm.batch_size`) y se clasifican en una
+  sola petición por lote. El cuello de botella del free tier son las
+  peticiones/minuto, no los tokens: en el lote de 218 anuncios se pasa de ~218
+  a ~9 llamadas. Misma red de seguridad (ante duda → reglas, nunca se descarta)
+  y mismo circuit breaker, ahora aplicados por lote. Como `process_alert` corre
+  por `(usuario, alerta)`, un lote nunca mezcla usuarios. Cubierto por
+  `test_batch.py`.
 
 - **`git pull --rebase --autostash` antes de `git add` en el workflow**: si
   el remoto ha divergido (p. ej. dos ejecuciones solapadas, o un commit

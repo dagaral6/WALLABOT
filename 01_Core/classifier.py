@@ -396,7 +396,7 @@ def configure_from_settings(settings):
     """Aplica la seccion 'llm' de bot_settings.yaml (cascada, modelos, claves,
     cooldown). Una variable de entorno del mismo concepto SIEMPRE manda sobre
     esto (util para GitHub Secrets). Idempotente; la llama main.py al arrancar."""
-    global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN
+    global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN, _BATCH_SIZE
     llm = (settings or {}).get("llm") or {}
 
     if "LLM_CASCADE" not in os.environ and "LLM_PROVIDER" not in os.environ:
@@ -419,6 +419,12 @@ def configure_from_settings(settings):
         except (TypeError, ValueError):
             log.warning("llm.cooldown_seconds invalido: %s", llm.get("cooldown_seconds"))
 
+    if "LLM_BATCH_SIZE" not in os.environ and llm.get("batch_size") is not None:
+        try:
+            _BATCH_SIZE = max(1, int(llm["batch_size"]))
+        except (TypeError, ValueError):
+            log.warning("llm.batch_size invalido: %s", llm.get("batch_size"))
+
 
 def get_ollama_model():
     """Modelo de Ollama efectivo (entorno > bot_settings.yaml > por defecto)."""
@@ -432,6 +438,17 @@ try:
     _LLM_COOLDOWN = float(os.getenv("LLM_COOLDOWN", "600"))
 except ValueError:
     _LLM_COOLDOWN = 600.0
+
+# --- batching de clasificacion (Tarea 1) ---
+# Nº de anuncios que se agrupan en UNA sola llamada al LLM. El cuello de botella
+# del free tier es el nº de PETICIONES/minuto (no los tokens): agrupar baja las
+# llamadas de ~200 a ~8 y evita disparar 429 en todos los proveedores a la vez.
+# Override: variable LLM_BATCH_SIZE o llm.batch_size en bot_settings.yaml.
+try:
+    _BATCH_SIZE = int(os.getenv("LLM_BATCH_SIZE", "25"))
+except ValueError:
+    _BATCH_SIZE = 25
+_BATCH_DESC_MAX = 280   # recorte de descripcion por anuncio (acota tokens/lote)
 
 _breaker_until: dict[str, float] = {}   # proveedor -> monotonic timestamp
 
@@ -742,6 +759,24 @@ _CATEGORY_FEWSHOT = [
 ]
 
 
+def _post_process_category(title, description, is_board_game, category,
+                           includes_base_game):
+    """Normaliza la respuesta cruda del LLM a una categoria de VALID. Misma
+    logica para el camino de un anuncio y el de lotes (se factoriza para que
+    ambos decidan IGUAL)."""
+    if not is_board_game:
+        return "not_game"
+    cat = category or "unknown"
+    if includes_base_game and cat in ("base", "expansion"):
+        cat = "base"
+    # Regla dura (rediseño jun 2026): sin vocabulario explícito de lote en el
+    # texto limpio, NO puede ser 'lote' aunque lo diga el modelo. Evita el falso
+    # 'lote' por mencionar varias expansiones de un mismo juego.
+    if cat == "lote" and not _has_lote_vocab(f"{title} {description}"):
+        cat = "base"
+    return cat if cat in VALID else "unknown"
+
+
 def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
     """Devuelve 'base'|'expansion'|'components'|'lote'|'unknown'."""
     description = strip_tag_spam(description)
@@ -768,23 +803,138 @@ def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
     msgs.append({"role": "user", "content": user_msg})
     try:
         data = _ask(model, _CATEGORY_SCHEMA, msgs)
-        if not data.get("is_board_game", True):
-            return "not_game"
-        cat = data.get("category", "unknown")
-        if data.get("includes_base_game") and cat in ("base", "expansion"):
-            cat = "base"
-        # Regla dura (rediseño jun 2026): sin vocabulario explícito de lote en
-        # el texto limpio, NO puede ser 'lote' aunque lo diga el modelo. Evita
-        # el falso 'lote' por mencionar varias expansiones de un mismo juego.
-        if cat == "lote" and not _has_lote_vocab(f"{title} {description}"):
-            cat = "base"
-        return cat if cat in VALID else "unknown"
+        return _post_process_category(
+            title, description,
+            data.get("is_board_game", True),
+            data.get("category", "unknown"),
+            data.get("includes_base_game", False))
     except requests.RequestException as e:
         log.warning("LLM no disponible [%s]: %s", LLM_PROVIDER, e)
         return "unknown"
     except (KeyError, ValueError, TypeError) as e:
         log.warning("Respuesta no parseable (%s).", e)
         return "unknown"
+
+
+# ---------------------------------------------------------------------------
+#  TAREA 1 (POR LOTES): clasificar VARIOS anuncios en UNA sola llamada al LLM
+# ---------------------------------------------------------------------------
+# Mismo criterio que classify_category, pero agrupando N anuncios por peticion
+# para no agotar la cuota por minuto del free tier. La red de seguridad es la
+# misma: atajo determinista a 'base', y ante CUALQUIER fallo (LLM caido, JSON
+# invalido o incompleto, indice ausente) ese anuncio cae a reglas
+# (_fallback_category) — nunca se descarta ("ante la duda, dejar pasar").
+
+_BATCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "is_board_game": {"type": "boolean"},
+                    "category": {"type": "string", "enum": list(VALID)},
+                    "includes_base_game": {"type": "boolean"},
+                },
+                "required": ["index", "is_board_game", "category",
+                             "includes_base_game"],
+            },
+        },
+    },
+    "required": ["items"],
+}
+
+_BATCH_PROMPT = _CATEGORY_PROMPT + """
+
+AHORA recibes VARIOS anuncios numerados (cada uno empieza por "INDEX: n").
+Clasifica CADA uno con el mismo criterio y devuelve un JSON con la clave
+"items": una lista con un objeto por anuncio, cada objeto con su "index" (el
+mismo numero que te doy), "is_board_game", "category" e "includes_base_game".
+No te saltes ningun indice ni inventes indices nuevos. Responde SOLO en JSON."""
+
+
+def classify_categories_batch(pairs, use_llm=True, model="qwen2.5:3b",
+                              batch_size=None):
+    """Clasifica una LISTA de anuncios agrupandolos en lotes (1 llamada al LLM
+    por lote en vez de 1 por anuncio).
+
+    pairs: lista de (title, description).
+    Devuelve una lista de categorias ALINEADA con 'pairs'
+    ('base'|'expansion'|'components'|'lote'|'not_game'|'unknown').
+
+    Red de seguridad identica a classify_category: atajo determinista a 'base',
+    y ante cualquier fallo o indice ausente el anuncio cae a reglas.
+    """
+    n = len(pairs)
+    results = [None] * n
+    clean = []          # (title, descripcion ya limpia) por indice
+    pending = []        # indices que necesitan al LLM
+    for i, (title, desc) in enumerate(pairs):
+        cdesc = strip_tag_spam(desc or "")
+        clean.append((title or "", cdesc))
+        # Mismo atajo determinista que classify_category (sin LLM).
+        if (not any(w in _normalize(title or "") for w in _LOTE_WORDS)
+                and strong_base_signal(title or "", cdesc)):
+            results[i] = "base"
+        elif not use_llm:
+            results[i] = _fallback_category(title or "", cdesc)
+        else:
+            pending.append(i)
+
+    if not pending:
+        return results
+
+    size = batch_size or _BATCH_SIZE
+    size = max(1, int(size))
+    for start in range(0, len(pending), size):
+        chunk = pending[start:start + size]   # indices globales del lote
+        lines = []
+        for pos, gi in enumerate(chunk):
+            title, cdesc = clean[gi]
+            d = (cdesc or "")[:_BATCH_DESC_MAX]
+            block = ("INDEX: %d\nTÍTULO: %s\nDESCRIPCIÓN: %s"
+                     % (pos, title, d or "(sin descripción)"))
+            hints = _suspicion_hints(title, cdesc)
+            if hints:
+                block += "\nPISTAS: " + " | ".join(hints)
+            lines.append(block)
+        msgs = [
+            {"role": "system", "content": _BATCH_PROMPT},
+            {"role": "user",
+             "content": "Clasifica estos anuncios (un item por cada INDEX):\n\n"
+                        + "\n\n".join(lines)},
+        ]
+        try:
+            data = _ask(model, _BATCH_SCHEMA, msgs)
+            by_index = {}
+            for obj in (data.get("items") or []):
+                try:
+                    by_index[int(obj.get("index"))] = obj
+                except (TypeError, ValueError):
+                    continue
+        except requests.RequestException as e:
+            log.warning("LLM batch no disponible [%s]: %s — reglas para %d anuncios",
+                        LLM_PROVIDER, e, len(chunk))
+            by_index = {}
+        except (KeyError, ValueError, TypeError) as e:
+            log.warning("Respuesta batch no parseable (%s) — reglas para %d anuncios",
+                        e, len(chunk))
+            by_index = {}
+        # Casa cada anuncio del lote; lo que falte cae a reglas (no se pierde).
+        for pos, gi in enumerate(chunk):
+            title, cdesc = clean[gi]
+            obj = by_index.get(pos)
+            if not isinstance(obj, dict):
+                results[gi] = _fallback_category(title, cdesc)
+                continue
+            results[gi] = _post_process_category(
+                title, cdesc,
+                obj.get("is_board_game", True),
+                obj.get("category", "unknown"),
+                obj.get("includes_base_game", False))
+    return results
 
 
 # ---------------------------------------------------------------------------

@@ -89,3 +89,8 @@ llm:
   # Pausa (segundos) que aplica un proveedor tras un 429 sostenido antes de
   # volver a intentarse (circuit breaker). Override: variable LLM_COOLDOWN.
   cooldown_seconds: 600
+
+  # Nº de anuncios que se agrupan en UNA sola llamada al LLM al clasificar
+  # (Tarea 1). Agrupar baja las peticiones/minuto y evita 429 en pasadas
+  # grandes. Override: variable LLM_BATCH_SIZE. Por defecto 25.
+  batch_size: 25
