@@ -15,6 +15,8 @@
 2. Si es cambio estructural, revisar fuente React si está disponible.
 3. Respetar que v20 es la versión actual.
 4. No tocar v15/v17/v18/v19 salvo referencia histórica.
+5. **GitHub Pages sincronización**: después de editar v20, copiar también a `docs/index.html`
+   (ambas deben quedar idénticas para que la URL pública sirva siempre la versión actualizada).
 
 ## Cambio en usuarios/configs
 
