@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-20 17:35:16 | Nuevas: Carcassonne: Posadas y Catedrales, Mare Nostrum
+# 2026-06-20 18:46:12 | Nuevas: Catan
 
 email:
   smtp_host: smtp.gmail.com
@@ -45,6 +45,12 @@ alerts:
 - name: Mare Nostrum
   keywords: mare nostrum
   max_price: 45
+  want:
+  - base
+  - lote
+- name: Catan
+  keywords: catan
+  max_price: 80
   want:
   - base
   - lote
