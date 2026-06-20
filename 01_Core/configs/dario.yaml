@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-20 16:31:35 | Nuevas: Las Estaciones de Inis, Castilllos de Burgundy
+# 2026-06-20 17:35:16 | Nuevas: Carcassonne: Posadas y Catedrales, Mare Nostrum
 
 email:
   smtp_host: smtp.gmail.com
@@ -34,6 +34,17 @@ alerts:
 - name: Castilllos de Burgundy
   keywords: castillos burgundy borgoña
   max_price: 35
+  want:
+  - base
+  - lote
+- name: 'Carcassonne: Posadas y Catedrales'
+  keywords: carcassonne posadas catedrales
+  max_price: 40
+  want:
+  - expansion
+- name: Mare Nostrum
+  keywords: mare nostrum
+  max_price: 45
   want:
   - base
   - lote
