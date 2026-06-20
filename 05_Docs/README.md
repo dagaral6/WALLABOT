@@ -365,11 +365,9 @@ La BD guarda lo ya decidido con la lógica anterior. Si cambias `keywords`,
 inicial). Ojo: la BD es compartida — borrarla resetea lo visto de **todos**
 los usuarios.
 
-## ⚠️ En diseño (aún no implementado): mejora del clasificador
-Hay un rediseño en curso de la distinción base/expansión/componentes/lote
-para corregir dos fallos conocidos: anuncios de un solo juego que se marcan
-como lote por culpa del spam de tags, y anuncios de un solo producto (p.ej.
-miniaturas) que se marcan como lote por mencionar varias expansiones de un
-mismo juego. La especificación completa (reglas primero, LLM como
-verificación) está en `05_Docs/CONTEXT.md`, sección "Diseño en curso". Nada
-de esto afecta al comportamiento actual descrito arriba.
+## ⚠️ En exploración: alternativas de clasificación
+**Validación de NLI:** hay un plan de 4 fases en `03_Diagnostico/` para evaluar
+un clasificador basado en NLI (Natural Language Inference, Hugging Face) como
+alternativa a la cascada LLM actual. Ver `AI_WORKFLOWS.md` sección "Validación
+de clasificador NLI". Esto NO afecta el comportamiento actual ni está activado
+en producción aún.

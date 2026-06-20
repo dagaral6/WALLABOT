@@ -546,7 +546,6 @@ const CATS = [
   { id: "components", label: "Componentes" },
   { id: "lote", label: "Lote" },
 ];
-const DEFAULT_WANT = ["base", "lote"];
 
 /* ============================= Estado ==================================== */
 const state = {
@@ -638,8 +637,7 @@ function buildAlertsYAML(games){
     if (g.maxPrice !== "" && g.maxPrice != null) L.push("    max_price: " + Number(g.maxPrice));
     if (g.minPrice !== "" && g.minPrice != null) L.push("    min_price: " + Number(g.minPrice));
     const want = (g.want || []);
-    const isDefault = want.length === DEFAULT_WANT.length && DEFAULT_WANT.every(w => want.includes(w));
-    if (want.length && !isDefault) L.push("    want: [" + want.map(q).join(", ") + "]");
+    if (want.length) L.push("    want: [" + want.map(q).join(", ") + "]");
     const ex = (typeof g.exclude === "string" ? g.exclude.split(",") : (g.exclude || []))
                  .map(x => x.trim()).filter(Boolean);
     if (ex.length) L.push("    exclude: [" + ex.map(q).join(", ") + "]");

@@ -41,6 +41,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 - Config inbox: `python3 config_inbox.py --dry-run`.
 - Ciclo manual: `python3 main.py --once --force`.
 - Usuarios: `python3 manage.py list`.
+- Validación NLI (experimental): 4 fases en `03_Diagnostico/` para evaluar un clasificador basado en NLI como alternativa a LLM cloud (ver `AI_WORKFLOWS.md` sección "Validación de clasificador NLI").
 
 ## Documentación larga
 

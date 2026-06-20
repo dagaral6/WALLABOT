@@ -41,6 +41,22 @@
 5. Ante duda, preferir false positive a anuncio perdido.
 6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`.
 
+## Validación de clasificador NLI (experimental)
+
+Flujo en 4 fases para evaluar un clasificador basado en NLI (Natural Language Inference)
+como alternativa a la cascada LLM actual, SIN tocar código de producción:
+
+1. **Fase 0:** `py 03_Diagnostico/build_nli_dataset.py` — extrae ground truth de `alerts.db`
+   (anuncios ya clasificados) a `03_Diagnostico/nli_dataset/cases.jsonl`. Puerta: ≥50 casos/categoría.
+2. **Fase 1:** `py 03_Diagnostico/test_nli_poc.py` — viabilidad sobre 6 anuncios sintéticos.
+   Requiere `HF_API_TOKEN` (gratis, Hugging Face Inference API). Puerta: >70% accuracy.
+3. **Fase 2:** `py 03_Diagnostico/compare_nli_vs_current.py` — compara NLI masivo vs el sistema
+   actual; matriz de confusión + métricas críticas (falsos rechazos). Requiere Fase 0.
+4. **Fase 3:** `py 03_Diagnostico/test_nli_local_runtime.py` — mide tiempo de inferencia local
+   (sentence-transformers) en condiciones de GitHub Actions. Requiere `transformers` + `torch`.
+
+Ver `C:\Users\Pc\.claude\plans\expl-came-si-tocar-nada-parsed-sifakis.md` para el plan completo.
+
 ## Cambio en correo entrante (config_inbox.py)
 
 1. La búsqueda IMAP en Gmail es por palabra completa, no por subcadena: no usar tokens parciales de palabras con tilde como criterio de búsqueda.

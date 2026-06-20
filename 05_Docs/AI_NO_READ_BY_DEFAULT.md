@@ -6,7 +6,8 @@ No leer salvo petición explícita:
 - `04_Logs/`
 - `06_Backups/`
 - `99_Obsoletos/`
-- versiones antiguas del HTML (v15/v17/v18/v19): ya no existen en el repo, borradas; la actual es `wallapop_config_v20.html` (histórico solo en `git log` o `CONTEXT.md`)
+- `03_Diagnostico/nli_dataset/`: output temporal de `build_nli_dataset.py` (se regenera en cada Fase 0)
+- versiones antiguas del HTML (v15/v17/v18/v19): ya no existen en el repo, borradas; la actual es `wallapop_config_v20.html` (histórico solo en `git log`)
 - respuestas crudas de Wallapop
 - zips históricos
 - documentación larga completa si basta con `AI_BRIEF.md`
