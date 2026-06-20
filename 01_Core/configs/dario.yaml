@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-20 18:46:12 | Nuevas: Catan
+# 2026-06-20 18:50:25 | Nuevas: Risk, Carcassone, Cities
 
 email:
   smtp_host: smtp.gmail.com
@@ -51,6 +51,24 @@ alerts:
 - name: Catan
   keywords: catan
   max_price: 80
+  want:
+  - base
+  - lote
+- name: Risk
+  keywords: risk
+  max_price: 100
+  want:
+  - base
+  - lote
+- name: Carcassone
+  keywords: carcassone
+  max_price: 50
+  want:
+  - base
+  - lote
+- name: Cities
+  keywords: cities
+  max_price: 40
   want:
   - base
   - lote
