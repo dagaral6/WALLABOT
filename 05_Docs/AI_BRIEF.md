@@ -44,7 +44,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 ## Documentación larga
 
-- `README.md`: uso e instalación.
-- `CONTEXT.md`: arquitectura, decisiones, deploy, HTML, historial.
-- `05_Docs/DEPLOY_GITHUB_ACTIONS.md`: workflow.
-- `05_Docs/ALTA_USUARIOS.md`: usuarios.
+- `README.md`: uso e instalación, instalación de Ollama, configuración, multi-usuario, deploy.
+- `05_Docs/DEPLOY_GITHUB_ACTIONS.md`: workflow GitHub Actions, Secrets, cadencia.
+- `05_Docs/DEPLOY_RAILWAY.md`: (histórico, vía descartada).
+- `05_Docs/ALTA_USUARIOS.md`: gestión de usuarios paso a paso.

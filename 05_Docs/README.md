@@ -51,16 +51,18 @@ pip install -r requirements.txt
 
 > **Sin Ollama** (p.ej. corriendo en la nube): el clasificador usa una
 > **cascada de LLMs gratuitos**, configurable en `bot_settings.yaml` (sección
-> `llm`) o por `LLM_CASCADE`. Por defecto: `groq,cerebras,gemini,openrouter,`
+> `llm`) o por `LLM_CASCADE`. Por defecto: `gemini,groq,cerebras,openrouter,`
 > `githubmodels,rules` (gana el primero que responde; `rules` es el último
 > recurso, sin IA). Solo necesitas la clave de los proveedores que uses
-> (`GROQ_API_KEY`, `CEREBRAS_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`,
+> (`GEMINI_API_KEY`, `GROQ_API_KEY`, `CEREBRAS_API_KEY`, `OPENROUTER_API_KEY`,
 > `GH_MODELS_TOKEN`). La cascada es **fail-fast**: un 429 pasa al siguiente
 > proveedor sin esperar ni reintentar (los 5xx sí tienen un reintento corto),
 > y un 429 sostenido manda al proveedor a cooldown. En GitHub Actions ya va
-> configurado. **Cerebras está roto actualmente** (clave inválida) y cae al
-> siguiente proveedor de la cascada sin afectar al resto. Detalles en
-> `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
+> configurado. **Advertencia (jun 2026):** Cerebras está roto (404 API);
+> OpenRouter limita a 50 peticiones/día (insuficiente para pasadas frecuentes);
+> GitHub Models requiere PAT (riesgo mayor). Los tres siguen funcionales si los
+> activas editando la cascada, pero tuvieron que salir de la cascada por defecto.
+> Detalles en `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
 
 ## Configuración
 Hay **un config por usuario** en `01_Core/configs/<user_id>.yaml` (el tuyo es

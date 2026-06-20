@@ -12,7 +12,7 @@ Cada 2 horas (minuto 33), GitHub arranca una maquina limpia que:
 3. `config_inbox.py` — revisa el buzon de wallabot01, aplica configs
    nuevos de la lista blanca y responde "Configuracion aplicada"
 4. `main.py --once` — una pasada completa: scrapeo, filtro de entrega,
-   clasificacion con Groq (LLM) y envio de avisos por Gmail
+   clasificacion con LLM (cascada Gemini→Groq→…) y envio de avisos por Gmail
 5. **Commitea el estado de vuelta al repo** (`git add -A 01_Core` + push):
    asi la siguiente ejecucion sabe que anuncios ya se vieron
 6. La maquina se destruye
@@ -29,9 +29,9 @@ todos los overrides por variables de entorno.
 | Secreto | Valor | Para que |
 |---|---|---|
 | `GMAIL_APP_PASSWORD` | app password de wallabot01 | SMTP + IMAP |
-| `GROQ_API_KEY` | clave `gsk_...` de console.groq.com | clasificador LLM (1o de la cascada) |
-| `CEREBRAS_API_KEY` | clave de cloud.cerebras.ai | clasificador LLM (respaldo) |
-| `GEMINI_API_KEY` | clave de aistudio.google.com | clasificador LLM (respaldo) |
+| `GEMINI_API_KEY` | clave de aistudio.google.com | clasificador LLM (1o de la cascada, recomendado) |
+| `GROQ_API_KEY` | clave `gsk_...` de console.groq.com | clasificador LLM (2o, respaldo) |
+| `CEREBRAS_API_KEY` | clave de cloud.cerebras.ai | clasificador LLM (respaldo, roto actualmente) |
 | `OPENROUTER_API_KEY` | clave de openrouter.ai | clasificador LLM (respaldo) |
 | `GH_MODELS_TOKEN` | PAT con permiso `models:read` | clasificador LLM (respaldo) |
 | `ALLOWED_SENDERS` | `correo:uid,correo:uid` | lista blanca de remitentes |

@@ -27,10 +27,10 @@
 
 ## Cambio en GitHub Actions
 
-1. Leer sección deploy en `CONTEXT.md`.
+1. Leer `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
 2. Recordar que el workflow commitea `alerts.db` y `configs/`.
 3. Mantener `git pull --rebase --autostash` antes de `git add`.
-4. No romper el gate de sueño nocturno.
+4. No romper el gate de sueño nocturno (01-07 Madrid, coincidir entre `bot_settings.yaml` y `.github/workflows/wallabot.yml`).
 
 ## Cambio en clasificador
 
