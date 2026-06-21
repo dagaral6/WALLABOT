@@ -27,7 +27,13 @@ import re
 import json
 import time
 import logging
+import functools
 import requests
+
+try:
+    from wordfreq import zipf_frequency
+except ImportError:                      # sin wordfreq: todas las palabras
+    zipf_frequency = None                # se tratan como "fuertes" (compat)
 
 log = logging.getLogger("classifier")
 
@@ -283,19 +289,52 @@ def strong_base_signal(title, description=""):
     return bool(_BASE_SUFFIX_RE.search(t))
 
 
+# Umbral de frecuencia (zipf 0..7): >= este valor = palabra COMUN -> "debil".
+# 4.0 es conservador: solo palabras muy frecuentes (estaciones, cities, risk,
+# azul...) son debiles; los nombres propios de juego (catan 2.2, inis 2.1,
+# nostrum 2.6, frostpunk 0, wingspan 2.8) quedan "fuertes". Asi el matching no
+# descarta de mas (no perdemos juegos); el ruido de palabras comunes lo filtra
+# ademas el vocabulario de no-juego en classify_category.
+_WEAK_ZIPF_THRESHOLD = 4.0
+
+
+@functools.lru_cache(maxsize=4096)
+def is_weak(word):
+    """True si `word` es comun/ambigua (no basta por si sola para confirmar el
+    juego buscado). Se evalua sobre la palabra ORIGINAL (con tildes), porque
+    wordfreq no conoce las formas sin tilde. Sin wordfreq -> nunca debil."""
+    if zipf_frequency is None or not word:
+        return False
+    return max(zipf_frequency(word, "es"),
+               zipf_frequency(word, "en")) >= _WEAK_ZIPF_THRESHOLD
+
+
 def title_matches(target, title):
     """
-    True si ALGUNA palabra significativa del término buscado aparece como
-    palabra en el título. Tokeniza por palabras (ignorando puntuación pegada
-    como ':' o ',') y compara por palabra completa: así 'catan' no encaja
-    dentro de otra palabra, pero 'Wingspan:' sí cuenta como 'wingspan'.
+    True si el TÍTULO contiene el juego buscado. Compara por palabra completa
+    (así 'catan' no encaja dentro de otra palabra, pero 'Wingspan:' sí cuenta).
+
+    Matching nucleo vs generico: una palabra COMUN del termino buscado
+    (estaciones, borgoña, mare...) NO basta por si sola; hace falta que coincida
+    una palabra distintiva (nombre propio: catan, inis...) o al menos DOS
+    palabras. Si el termino es de una sola palabra, cualquier coincidencia vale
+    (no hay alternativa mas distintiva). Evita colar 'Estacion de tren' por
+    'estaciones' o 'Camisa Burgundy' por 'borgoña'.
     """
     t_words = set(re.findall(r"\w+", _normalize(title)))
-    target_words = [w for w in re.findall(r"\w+", _normalize(target))
-                    if w not in _STOPWORDS]
-    if not target_words:
-        target_words = re.findall(r"\w+", _normalize(target))
-    return any(w in t_words for w in target_words)
+    # Pares (original con tildes, normalizada) de las palabras significativas.
+    raw = re.findall(r"\w+", target.lower())
+    pairs = [(w, _normalize(w)) for w in raw if _normalize(w) not in _STOPWORDS]
+    if not pairs:
+        pairs = [(w, _normalize(w)) for w in raw]
+    matched = [(orig, norm) for orig, norm in pairs if norm in t_words]
+    if not matched:
+        return False
+    if any(not is_weak(orig) for orig, norm in matched):
+        return True                       # coincide una palabra distintiva
+    if len(pairs) == 1:
+        return True                       # termino de 1 palabra: no hay opcion
+    return len(matched) >= 2              # solo comunes: exigir >= 2
 
 
 # ---------------------------------------------------------------------------
@@ -777,43 +816,114 @@ def _post_process_category(title, description, is_board_game, category,
     return cat if cat in VALID else "unknown"
 
 
-def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
-    """Devuelve 'base'|'expansion'|'components'|'lote'|'unknown'."""
-    description = strip_tag_spam(description)
-    # Atajo determinista: si el título es claramente el juego base (y no es un
-    # lote), lo damos por 'base' sin preguntar al LLM. Evita el error de que un
-    # modelo pequeño marque un juego base como 'expansion', y funciona aunque
-    # Ollama esté caído.
-    if (not any(w in _normalize(title) for w in _LOTE_WORDS)
+# ---------------------------------------------------------------------------
+#  CLASIFICACIÓN POR REGLAS (sin LLM, rediseño jun 2026)
+# ---------------------------------------------------------------------------
+# La cascada LLM dejó de responder (429 sostenido en todos los proveedores
+# gratuitos). En su lugar clasificamos por REGLAS sobre título + descripción,
+# validado contra datos reales (ver 03_Diagnostico/tune_rules_only.py).
+
+# Vocabulario que indica OTRO producto (no un juego de mesa) aunque el nombre
+# coincida: libros, cine, videojuegos, ropa y el "long tail" de nombres comunes
+# (sobre todo 'Mare Nostrum': perfume, reloj, seguros, maquetas...). Se busca en
+# título + descripción (la descripción revela 'Mare Nostrum' = "Libro de...").
+_NOT_GAME_VOCAB = (
+    "libro", "libros", "novela", "novelas", "blasco", "ibanez", "folleto",
+    "cine", "pelicula", "dvd", "bluray", "alquiler", "lamina", "acuarela",
+    "botella", "maqueta", "maquetas", "puzzle", "puzle",
+    "ps2", "ps3", "ps4", "ps5", "consola", "videojuego", "steam", "xbox",
+    "nintendo", "switch", "playstation", "concert", "camiseta", "camisa",
+    "polo", "guantes", "zapatillas", "esmalte", "bicicleta", "esqueje",
+    "esquejes", "planta", "perfume", "edt", "edp", "colonia", "vinilo",
+    "disco", "cuadro", "escultura", "pintura", "poster", "cartel", "reloj",
+    "cronografo", "gemelos", "insignia", "seguros", "seguro", "poliza",
+    "polizas", "carcasa", "pesca", "telescopica", "barco", "yachting",
+)
+
+# Accesorios/piezas sueltas -> 'components' (no el juego completo).
+_COMP_VOCAB = (
+    "organizador", "organizadores", "inserto", "insertos", "separador",
+    "separadores", "funda", "fundas", "sleeve", "sleeves", "protector",
+    "protectores", "almacenamiento", "metacrilato", "neopreno", "tapete",
+    "losetas", "loseta", "dados", "lanzador", "trofeo", "tablas", "recambio",
+    "repuesto", "torre de dados", "bandeja", "bandejas", "fichas", "piezas",
+    "recursos", "soportes", "impreso", "impresos", "impresa", "impresas",
+    "mapa", "mapas",
+)
+
+# Señal POSITIVA fuerte de juego de mesa: tiene PRIORIDAD sobre _NOT_GAME_VOCAB
+# (muchas descripciones de juegos dicen "videojuego" — p.ej. Frostpunk está
+# basado en uno — o "libro de reglas"; no por eso dejan de ser juegos de mesa).
+_GAME_SIGNAL_RE = re.compile(
+    r"\bjuego de mesa\b|\bjuego de tablero\b|\bboard game\b")
+# Si el TÍTULO dice claramente que es el juego, no lo degrades a 'components'
+# por mencionar un accesorio: es un base CON extras.
+_GAME_PRODUCT_RE = re.compile(r"\bjuego de mesa\b|\bjuego de tablero\b")
+
+_EXPANSION_TITLE_RE = re.compile(
+    r"\b(expansion|expansiones|ampliacion|ampliaciones)\b")
+# Señales en el título de que INCLUYE la base (=> no es "solo expansión").
+_BASE_INCLUSION_RE = re.compile(
+    r"\bbase\b|\bincluye\b|\bcompleto\b|\bcompleta\b"
+    r"|\bcon\s+(?:la|las|el|los|una|unas|sus|varias|dos|tres|\d+)?\s*expansion"
+    r"|\by\s+(?:sus\s+|todas\s+las\s+|varias\s+|dos\s+|tres\s+)?expansion")
+
+
+def _rule_expansion_by_title(title):
+    """'expansion' si el título lo dice y NO hay señal de que incluya la base."""
+    t = _normalize(title)
+    if not (t.startswith(("expansion ", "ampliacion ", "promo "))
+            or _EXPANSION_TITLE_RE.search(t)):
+        return None
+    if _BASE_INCLUSION_RE.search(t) or "+" in title:
+        return None
+    return "expansion"
+
+
+def _classify_by_rules(title, description):
+    """Decide la categoría por reglas (título + descripción). Asume que el
+    título YA coincide con el juego buscado (la relevancia la filtra
+    title_matches). Devuelve 'base'|'expansion'|'components'|'lote'|'not_game'."""
+    t = _normalize(title)
+    full = _normalize(f"{title} {description}")
+    is_game_signal = bool(_GAME_SIGNAL_RE.search(full))
+    # No-juego (libro, ps5, perfume...), salvo señal positiva de juego de mesa.
+    if not is_game_signal and any(w in full for w in _NOT_GAME_VOCAB):
+        return "not_game"
+    # Componentes: solo si el accesorio es el PRODUCTO, no un extra de un base.
+    if any(w in t for w in _COMP_VOCAB):
+        is_base_with_extra = (
+            _GAME_PRODUCT_RE.search(t) or "+" in title
+            or " e inserto" in t or " con inserto" in t
+            or " con funda" in t or " con fundas" in t)
+        if not is_base_with_extra:
+            return "components"
+    # Atajo a base (título claramente base y no es lote).
+    if (not any(w in t for w in _LOTE_WORDS)
             and strong_base_signal(title, description)):
         return "base"
-    if not use_llm:
-        return _fallback_category(title, description)
-    msgs = [{"role": "system", "content": _CATEGORY_PROMPT}]
-    for u, a in _CATEGORY_FEWSHOT:
-        msgs.append({"role": "user", "content": u})
-        msgs.append({"role": "assistant",
-                     "content": json.dumps(a, ensure_ascii=False)})
-    user_msg = (f"TÍTULO: {title}\n"
-                f"DESCRIPCIÓN: {description or '(sin descripción)'}")
-    hints = _suspicion_hints(title, description)
-    if hints:
-        user_msg += ("\n\nPISTAS (no definitivas, decide por el contexto):\n- "
-                     + "\n- ".join(hints))
-    msgs.append({"role": "user", "content": user_msg})
-    try:
-        data = _ask(model, _CATEGORY_SCHEMA, msgs)
-        return _post_process_category(
-            title, description,
-            data.get("is_board_game", True),
-            data.get("category", "unknown"),
-            data.get("includes_base_game", False))
-    except requests.RequestException as e:
-        log.warning("LLM no disponible [%s]: %s", LLM_PROVIDER, e)
-        return "unknown"
-    except (KeyError, ValueError, TypeError) as e:
-        log.warning("Respuesta no parseable (%s).", e)
-        return "unknown"
+    # Lote: vocabulario explícito (regla dura).
+    if _has_lote_vocab(full):
+        return "lote"
+    # Expansión por título.
+    exp = _rule_expansion_by_title(title)
+    if exp:
+        return exp
+    # Respaldo por frases explícitas en la DESCRIPCIÓN ("solo la expansión",
+    # "solo los insertos", "no incluye el juego"...): reutiliza _fallback_category.
+    fb = _fallback_category(title, description)
+    if fb in ("expansion", "components"):
+        return fb
+    return "base"   # ante la duda, dejar pasar (preferencia del proyecto)
+
+
+def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
+    """Clasifica por REGLAS sobre título + descripción (sin LLM). Devuelve
+    'base'|'expansion'|'components'|'lote'|'not_game'.
+
+    `use_llm`/`model` se conservan por compatibilidad de firma pero ya no se
+    usan: la cascada LLM quedó retirada (su código sigue en el módulo, inerte)."""
+    return _classify_by_rules(title, strip_tag_spam(description))
 
 
 # ---------------------------------------------------------------------------
@@ -857,84 +967,15 @@ No te saltes ningun indice ni inventes indices nuevos. Responde SOLO en JSON."""
 
 def classify_categories_batch(pairs, use_llm=True, model="qwen2.5:3b",
                               batch_size=None):
-    """Clasifica una LISTA de anuncios agrupandolos en lotes (1 llamada al LLM
-    por lote en vez de 1 por anuncio).
+    """Clasifica una LISTA de (title, description) por REGLAS. Devuelve una lista
+    de categorías ALINEADA con 'pairs'
+    ('base'|'expansion'|'components'|'lote'|'not_game').
 
-    pairs: lista de (title, description).
-    Devuelve una lista de categorias ALINEADA con 'pairs'
-    ('base'|'expansion'|'components'|'lote'|'not_game'|'unknown').
-
-    Red de seguridad identica a classify_category: atajo determinista a 'base',
-    y ante cualquier fallo o indice ausente el anuncio cae a reglas.
-    """
-    n = len(pairs)
-    results = [None] * n
-    clean = []          # (title, descripcion ya limpia) por indice
-    pending = []        # indices que necesitan al LLM
-    for i, (title, desc) in enumerate(pairs):
-        cdesc = strip_tag_spam(desc or "")
-        clean.append((title or "", cdesc))
-        # Mismo atajo determinista que classify_category (sin LLM).
-        if (not any(w in _normalize(title or "") for w in _LOTE_WORDS)
-                and strong_base_signal(title or "", cdesc)):
-            results[i] = "base"
-        elif not use_llm:
-            results[i] = _fallback_category(title or "", cdesc)
-        else:
-            pending.append(i)
-
-    if not pending:
-        return results
-
-    size = batch_size or _BATCH_SIZE
-    size = max(1, int(size))
-    for start in range(0, len(pending), size):
-        chunk = pending[start:start + size]   # indices globales del lote
-        lines = []
-        for pos, gi in enumerate(chunk):
-            title, cdesc = clean[gi]
-            d = (cdesc or "")[:_BATCH_DESC_MAX]
-            block = ("INDEX: %d\nTÍTULO: %s\nDESCRIPCIÓN: %s"
-                     % (pos, title, d or "(sin descripción)"))
-            hints = _suspicion_hints(title, cdesc)
-            if hints:
-                block += "\nPISTAS: " + " | ".join(hints)
-            lines.append(block)
-        msgs = [
-            {"role": "system", "content": _BATCH_PROMPT},
-            {"role": "user",
-             "content": "Clasifica estos anuncios (un item por cada INDEX):\n\n"
-                        + "\n\n".join(lines)},
-        ]
-        try:
-            data = _ask(model, _BATCH_SCHEMA, msgs)
-            by_index = {}
-            for obj in (data.get("items") or []):
-                try:
-                    by_index[int(obj.get("index"))] = obj
-                except (TypeError, ValueError):
-                    continue
-        except requests.RequestException as e:
-            log.warning("LLM batch no disponible [%s]: %s — reglas para %d anuncios",
-                        LLM_PROVIDER, e, len(chunk))
-            by_index = {}
-        except (KeyError, ValueError, TypeError) as e:
-            log.warning("Respuesta batch no parseable (%s) — reglas para %d anuncios",
-                        e, len(chunk))
-            by_index = {}
-        # Casa cada anuncio del lote; lo que falte cae a reglas (no se pierde).
-        for pos, gi in enumerate(chunk):
-            title, cdesc = clean[gi]
-            obj = by_index.get(pos)
-            if not isinstance(obj, dict):
-                results[gi] = _fallback_category(title, cdesc)
-                continue
-            results[gi] = _post_process_category(
-                title, cdesc,
-                obj.get("is_board_game", True),
-                obj.get("category", "unknown"),
-                obj.get("includes_base_game", False))
-    return results
+    Sin LLM ya no hay lotes ni cuota que gestionar: se clasifica anuncio a
+    anuncio con classify_category. `use_llm`/`model`/`batch_size` se conservan
+    por compatibilidad de firma pero ya no se usan."""
+    return [classify_category(title or "", desc or "", use_llm, model)
+            for title, desc in pairs]
 
 
 # ---------------------------------------------------------------------------
@@ -993,39 +1034,20 @@ _LOTE_FEWSHOT = [
 
 def check_lote(target, title, description, use_llm=True, model="qwen2.5:3b"):
     """
-    Devuelve dict {is_lote, includes_target, games}. Si Ollama falla, devuelve
-    is_lote=False (no podemos confirmar sin LLM).
+    Rama 2 (título NO coincide): ¿es un LOTE que incluye el juego buscado?
+    Por REGLAS (sin LLM): hace falta vocabulario explícito de lote Y que el
+    juego buscado aparezca en el título o la descripción (donde se listan los
+    juegos del lote). Devuelve dict {is_lote, includes_target, games}.
+
+    `use_llm`/`model` se conservan por compatibilidad de firma; ya no se usan.
     """
     description = strip_tag_spam(description)
-    if not use_llm:
-        return {"is_lote": False, "includes_target": False, "games": ""}
-    msgs = [{"role": "system", "content": _LOTE_PROMPT}]
-    for u, a in _LOTE_FEWSHOT:
-        msgs.append({"role": "user", "content": u})
-        msgs.append({"role": "assistant",
-                     "content": json.dumps(a, ensure_ascii=False)})
-    msgs.append({"role": "user",
-                 "content": f"JUEGO BUSCADO: {target}\n"
-                            f"TÍTULO: {title}\n"
-                            f"DESCRIPCIÓN: {description or '(sin descripción)'}"})
-    try:
-        data = _ask(model, _LOTE_SCHEMA, msgs)
-        is_lote = bool(data.get("is_lote", False))
-        # Regla dura (rediseño jun 2026): sin vocabulario explícito de lote, no
-        # es lote (aunque el modelo lo diga). includes_target solo si es lote.
-        if is_lote and not _has_lote_vocab(f"{title} {description}"):
-            is_lote = False
-        return {
-            "is_lote": is_lote,
-            "includes_target": bool(data.get("includes_target", False)) and is_lote,
-            "games": data.get("games", ""),
-        }
-    except requests.RequestException as e:
-        log.warning("LLM no disponible [%s]: %s", LLM_PROVIDER, e)
-        return {"is_lote": False, "includes_target": False, "games": ""}
-    except (KeyError, ValueError, TypeError) as e:
-        log.warning("Respuesta no parseable (%s).", e)
-        return {"is_lote": False, "includes_target": False, "games": ""}
+    full = f"{title} {description}"
+    is_lote = _has_lote_vocab(full)
+    # title_matches aplica el matching núcleo/genérico sobre título+descripción:
+    # el juego buscado debe aparecer de verdad (no por una palabra común suelta).
+    includes = is_lote and title_matches(target, full)
+    return {"is_lote": is_lote, "includes_target": includes, "games": ""}
 
 
 # ---------------------------------------------------------------------------

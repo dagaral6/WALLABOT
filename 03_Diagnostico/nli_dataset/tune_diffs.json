@@ -1,0 +1,1304 @@
+[
+  {
+    "title": "Carcassonne: Maravillas de la Humanidad I",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Caja almacenamiento carcassonne",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Carcassonne Viaje",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Carcassonne nuevas expansiones",
+    "actual": "not_game",
+    "pred": "expansion",
+    "via": "R4"
+  },
+  {
+    "title": "Carcassonne: Posadas y Catedrales",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Caja 3D para Ex 1 Posadas y Catedrales 2025",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "CARCASSONNE CON LA EXPANSION POSADAS Y CATEDRALES",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Carcassonne Nederland Mini-uitbreiding",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Carcassonne hecho en madera",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Lote de Juegos 7 Wonders Arch+ Carcassonne Exp.",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "Carcassonne Plus 2014 + La Torre",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Carcassonne Edición Invierno",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Caja 3D para Ex 1 Posadas y Catedrales",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Caja 3D para Catedrales alemanas",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Carcassonne Set Miniexpansiones I Conjunto 1",
+    "actual": "components",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Carcassonne primera edición completo",
+    "actual": "components",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Castillos de Arena",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Los Castillos de Borgoña",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "2 Esquejes Tradescantia zebrina BURGUNDY",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Columbia Snowmelt Valley II Jacket Burgundy S",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Esmalte de uñas Nail Rock Velvet Burgundy",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Esmalte Uñas Hi Hybrid Rojo Borgoña #704",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Organizador Los Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "New Balance 550 Borgoña Burgundy Cyan talla 42",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Inserto Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Inserto 3d Burgundy 20th aniversario",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "A Kitchen in Burgundy",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Polo Cross of Burgundy Nuevo",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Esqueje Tradescantia zebrina BURGUNDY",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Falda borgoña Hugo Boss por encima de la rodilla para mujer S",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Esqueje Tradescantia zebrina BURGUNDY",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Sudadera de forro polar sintético en L Burgundy de Jack Wolfskin para hombre",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Castillos de Borgoña PRECINTADO",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Inserto Los Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Nike Air Zoom Spiridon Cage 2 Gris Borgoña 38",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Edredón Refrigue burgundy",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Castillos de Borgoña dados juego mesa",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Los castillos de Borgoña: tapete",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Vestido doble borgoña",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Sudadera burgundy scout",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Figura plomo infantería suiza Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Inserto Organizador Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Inserto 3D para Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Gargantilla borgoña con esfera y perlas",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Los Castillos de Borgoña - The Castles of Burgundy",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Chaqueta Fina Burgundy",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Ucon Acrobatics Adina Mini Mochila Borgoña Vegana",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "3 pares botas Bratz - Pink & Burgundy",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Plumero Jlojl Burgundy para mujer, talla M",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "CASTILLOS DE BURGUNDIA EDICIÓN ESPECIAL CON TELAS DE ACRÍLICO",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "2 Cajas juego Castillos Borgoña",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Falda Borgoña 50",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "castillos de borgoña",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Timberland Burgundy Authentic. Tallas 41-45 y 46.",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Zapatos elegantes de piel Quarvif Oliaro Burgundy 38",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Body Promise – Talla 70B (Borgoña/Burgundy)",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Inserto Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Los Castillos de Borgoña",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "ESTERAMÁN DE JUEGO DE LOS CASTILLOS DE BURGUNDIA EDICIÓN ESPECIAL NUEVO",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "PRECINTADO- TAPETE de NEOPRENO CASTLES OF BURGUNDY",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Los Castillos de Borgoña + extras",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Inserto 3D para el juego de mesa Castillos ALEA",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Inserto Castillos Borgoña 20 Aniversario opc. tapa",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Castillos de Borgoña + Inserto Juego de Mesa",
+    "actual": "base",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Castillos de Borgoña: Juego de Cartas",
+    "actual": "expansion",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Los Castillos de Burgundy",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Los Castillos de Borgoña - El juego de cartas",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Los Castillos de Borgoña (Precintado)",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Correa 19.5 mm reloj de lagarto borgoña y dorado",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Organizadores Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Juego de mesa Castillos de Borgoña + Inserto",
+    "actual": "base",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Bu sc o Chaqueta GUTS&LOVE Burgundy",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Organizador Castillos Borgoña",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Catan El Juego de Mesa Sin Estrenar",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Ciudades y Caballeros (5-6 jugadores)",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan - Los Colonos de América",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Candamir",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan El Trono de Espadas - La Hermandad de los Guardianes",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Juego de mesa Catan Junior",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Edición Limitada",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "De Kolonisten van Catan - Basisspel",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Juego Catan Junior",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Calendario Snoopy y Catan Seafarers",
+    "actual": "lote",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan Los Colonos de Europa (Descatalogado)",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catán El Juego de Mesa. Precintado.No negociable",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan El Trono de Hierro",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan edición de viaje compacto en alemán",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan El Duelo 2 Jugadores",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan: El Despertar de la Humanidad",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Los Descubridores de Catan 1ª Edición",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Juego de mesa Catan Junior",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Expansión de Catan en italiano",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "R4"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Ciudades y Caballeros + Expansión 5-6 jugado",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Catan Colonos de América: Historias",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Juego de mesa Catan Junior",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Organizador Catan",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Torre de dados plegable Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan - Esp. Marinai & La Leyenda de los piratas",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Organizador Catan 6 piezas",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Juego de Cartas Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "CATAN ORGANIZADOR (6 UDS)",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Pieza personalizada Catan juego de mesa",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Piratas y Exploradores Ed. Nueva",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Ciudad Colonos Catan XXL",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Tablas de costes CATAN",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Lote Rodolfo Catan",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "🇮🇹 Catan - Città e Cavalieri Exp. 5-6 Jugadores 🇮🇹",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan: The Helpers - Edición Consola",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Losetas 3D Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Libro juegos catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan PS5 - Edición de Consola",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan: El Despertar de la Humanidad",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Torre de dados plegable Catan",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "🇮🇹 Catan - Mercanti e Barbari 🇮🇹",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Fichas Catan Aztecas impresas en 3D",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Trofeo CATAN Rey Corona Amarillo Negro",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Cartas de desarrollo CATAN",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Fichas Catan Civilización",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan Rivals Deluxe Juego de Cartas",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Juego de mesa Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "24 Piezas  para Juego Catan color a elegir",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Torre para dados CATAN",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan La leyenda de los piratas",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Lanzador de dados Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan Navegantes Exp. 5-6 Jugadores",
+    "actual": "expansion",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "foreign_language",
+    "pred": "expansion",
+    "via": "NLI2"
+  },
+  {
+    "title": "Set de Recursos Catan 3D Premium - 101 recursos",
+    "actual": "components",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Organizador Catan Plástico Verde",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Organizador Catan Azul Plástico",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "CATAN PS5 Edición Consola 05466",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "4 bandejas organizadoras Catan",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Organizador Catan Hexagonales",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Lanzador de dados Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan Imperio de Marruecos",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Juego de Dados",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Edición de consola de Catan para PS5",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan: 3 expansiones en italiano",
+    "actual": "base",
+    "pred": "expansion",
+    "via": "R4"
+  },
+  {
+    "title": "Organizador Catan Plástico Azul Gris",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Set Catán Morado impreso en 3D",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Piezas Catan (Cajas y Fichas)",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "6 Soportes para piezas de Catan color a elegir",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Colonos de Catan de dados",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Juego de Cartas Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan Plus - Juego de mesa sin usar",
+    "actual": "expansion",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Catan Mercaderes y Bárbaros 5-6 Jugadores",
+    "actual": "expansion",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Cajas organizadoras Catan",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "100 Recursos Catan Impresos 3D",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Pack 4 Civilizaciones Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Catan: Los Colonos de Europa - La Era del Comercio",
+    "actual": "expansion",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Organizador CATAN",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Expansión Catan Pescadores 3D",
+    "actual": "not_game",
+    "pred": "expansion",
+    "via": "R4"
+  },
+  {
+    "title": "The Settlers of Catan Card Game",
+    "actual": "foreign_language",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Fichas Catan personalizadas",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Mapa gigante CATAN Lote",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "Fichas Catan 3D Estilo China",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Organizador juego Catan",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Catan - Cartas en Alemán - Primera Edición",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Fichas juego  Catan Grecia 3D",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Frostpunk + frostland e inserto 3D",
+    "actual": "base",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "12 Juegos PC Originales Variados",
+    "actual": "lote",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Frostpunk: El Juego de Tablero Con inserto",
+    "actual": "base",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Frostpunk: Frostlander",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Inserto Frostpunk Juego de Tablero",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Funda / Slipcover - Frostpunk 2 - V3",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "FROSTPUNK / español nuevo",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "INSERTO para juego Frostpunk",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Inserto. Frostpunk",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Frostpunk",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Inserto Frostpunk WithOut Mess",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Frostpunk + extras",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Frostpunk: El Juego de Tablero (Español)",
+    "actual": "base",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Frostpunk Español + Expansion Frostlander + Fundas",
+    "actual": "base",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Frostpunk miniaturas edificios sundrop",
+    "actual": "expansion",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Inserto Organizador Frostpunk",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "R5"
+  },
+  {
+    "title": "Estaciones Ecológicas de Pinares Españoles ICONA",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Saco Petite Marmotte 4 estaciones",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Plato de colección de las estaciones Naïf",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "Saco Petite Marmotte 4 estaciones",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "4 platos de cerámica Bassano Estaciones",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Lote 3 Estaciones Meteorológicas Vintage Latón",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "Edredón Bedsure 4 Estaciones 135x200",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Mare Nostrum + expansión Mithologhy",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Mare Nostrum + expansion Mythologique",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Mare nostrum",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Blasco Ibáñez",
+    "actual": "lote",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Libros Vicente Blasco Ibañez",
+    "actual": "lote",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Mare Nostrum + Extensión Mythologique",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Vendo Maqueta Mare Nostrum",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "alquiler mare nostrum 15. patacona alboraya",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Mare Nostrum Pack",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "El misterio del arca: Una aventura en el Mare N...",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Top Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Maqueta Mare Nostrum Pesquero de Arrastre",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Maqueta Barco Pesquero Mare Nostrum Artesanía Lati",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "L’été de l’égorgeur",
+    "actual": "foreign_language",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Lorenzo Villoresi Mare Nostrum Aura Maris EdT",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Pintura Jotun Yachting Mare Nostrum SP 2.5L",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Botella de agua reutilizable Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Caña telescópica Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "El misterio del arca: Una aventura en el Mare N...",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "El misterio del arca: Una aventura en el Mare N...",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  },
+  {
+    "title": "Lote 5 Pólizas Seguros Mare Nostrum años 1950-70",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "mare Nostrum",
+    "actual": "base",
+    "pred": "not_game",
+    "via": "NLI1"
+  },
+  {
+    "title": "Lote de 13 mapas Mare Nostrum 1:125000",
+    "actual": "not_game",
+    "pred": "lote",
+    "via": "R3"
+  },
+  {
+    "title": "Panerai Mare Nostrum PAM00716 Cronógrafo",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Gemelos Mare Nostrum de Plata Esmaltada",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Carcasa TECTUS CONUS - MARE NOSTRUM",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Artesanal barco Mare Nostrum 61 cmts",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2"
+  },
+  {
+    "title": "Insignia de la Liga Naval Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Cartel Mare Nostrum Seguros y Reaseguros",
+    "actual": "not_game",
+    "pred": "base",
+    "via": "NLI2-lowconf"
+  },
+  {
+    "title": "Cartel Mare Nostrum Seguros Cristal Biselado",
+    "actual": "not_game",
+    "pred": "components",
+    "via": "NLI2"
+  }
+]

@@ -1,2 +1,5 @@
 requests>=2.31
 PyYAML>=6.0
+# Frecuencia lexica (es/en) para el matching: distingue el nombre propio del
+# juego (raro -> fuerte) de palabras comunes/ruido (estaciones, risk... -> debil).
+wordfreq>=3.0

@@ -1,0 +1,566 @@
+[
+  {
+    "title": "Carcassonne: Maravillas de la Humanidad I",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Carcassonne nuevas expansiones",
+    "actual": "not_game",
+    "pred": "expansion",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Carcassonne Nederland Mini-uitbreiding",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Pack cajas Carcassonne Base + Expansiones 1 y 2",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Lote de Juegos 7 Wonders Arch+ Carcassonne Exp.",
+    "actual": "not_game",
+    "pred": "lote",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Carcassonne Set Miniexpansiones I Conjunto 1",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Carcassonne primera edición completo",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Carcassonne: Posadas y Catedrales"
+  },
+  {
+    "title": "Edificios 3D SIN PINTAR para Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Castillos de Borgoña + Inserto",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "CASTILLOS DE BURGUNDIA EDICIÓN ESPECIAL CON TELAS DE ACRÍLICO",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "2 Cajas juego Castillos Borgoña",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Castillos de Borgoña",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "ESTERAMÁN DE JUEGO DE LOS CASTILLOS DE BURGUNDIA EDICIÓN ESPECIAL NUEVO",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "CASTILLOS DE BORGOÑA 20 aniversario + INSERTO",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Castillos de la Borgoña con inserto Folder Space",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Inserto 3D para el juego de mesa Castillos ALEA",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Castillos de Borgoña: Juego de Cartas",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Los Castillos de Borgoña - El juego de cartas",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Castillos de Borgoña ed antigua",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Castilllos de Burgundy"
+  },
+  {
+    "title": "Recolectores de cartas de recursos - Los Colonos de Catán",
+    "actual": "base",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Calendario Snoopy y Catan Seafarers",
+    "actual": "lote",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Los Colonos de Catan Dados Devir",
+    "actual": "base",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Los Colonos de Catán - Cartas - Caballero - Recursos",
+    "actual": "base",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Expansión de Catan en italiano",
+    "actual": "base",
+    "pred": "expansion",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Los Colonos de Catan Juego de Dados",
+    "actual": "base",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Los Colonos de Catan - Primera Edición - Fichas",
+    "actual": "base",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan - Esp. Marinai & La Leyenda de los piratas",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Civilizaciones Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Juego de Cartas Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Pieza personalizada Catan juego de mesa",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Piratas y Exploradores Ed. Nueva",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Ciudad Colonos Catan XXL",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Lote Rodolfo Catan",
+    "actual": "not_game",
+    "pred": "lote",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "🇮🇹 Catan - Città e Cavalieri Exp. 5-6 Jugadores 🇮🇹",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan: The Helpers - Edición Consola",
+    "actual": "expansion",
+    "pred": "not_game",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "🇮🇹 Catan - Mercanti e Barbari 🇮🇹",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Cartas de desarrollo CATAN",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Rivals Deluxe Juego de Cartas",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Juego de mesa Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Plus con inserto",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan La leyenda de los piratas",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Navegantes Exp. 5-6 Jugadores",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Junior Juego de Mesa",
+    "actual": "foreign_language",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Imperio de Marruecos",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Juego de Dados",
+    "actual": "expansion",
+    "pred": "components",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan: 3 expansiones en italiano",
+    "actual": "base",
+    "pred": "expansion",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Juego de Cartas Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Plus - Juego de mesa sin usar",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan Mercaderes y Bárbaros 5-6 Jugadores",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Pack 4 Civilizaciones Catan",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan: Los Colonos de Europa - La Era del Comercio",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "The Settlers of Catan Card Game",
+    "actual": "foreign_language",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Caja 3D para cartas Catan",
+    "actual": "components",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "Catan - Cartas en Alemán - Primera Edición",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Catan"
+  },
+  {
+    "title": "12 Juegos PC Originales Variados",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Frostpunk (hasta 90€)"
+  },
+  {
+    "title": "Inserto Frostpunk Juego de Tablero",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Frostpunk (hasta 90€)"
+  },
+  {
+    "title": "Caja contenedor Frostpunk KS",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Frostpunk (hasta 90€)"
+  },
+  {
+    "title": "Frostpunk miniaturas edificios sundrop",
+    "actual": "expansion",
+    "pred": "base",
+    "alert": "dario/Frostpunk (hasta 90€)"
+  },
+  {
+    "title": "Lote 5 juegos de mesa",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Colección Vicente Blasco Ibáñez",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Puzzle Cuadro Mare Nostrum Mediterráneo",
+    "actual": "base",
+    "pred": "not_game",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Blasco Ibáñez",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "LOTE de Blasco Ibañez,  10 novelas. OFERTA",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Colección de Vicente Blasco Ibáñez",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Libros Vicente Blasco Ibañez",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Lote 4 libros Vicente Blasco Ibáñez",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Lote novelas Blasco Ibáñez (5 libros clásicos)",
+    "actual": "lote",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Sueños y mitos: un viaje por el Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Sueños y Mitos : Un viaje por el Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Sueños y mitos: un viaje por el Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare nostrum (Spanish Edition)",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Top Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum (Spanish Edition)",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "L’été de l’égorgeur",
+    "actual": "foreign_language",
+    "pred": "no_title_match",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum - José Antonio López",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Sueños y mitos: un viaje por el Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Sueños y Mitos: Un viaje por el Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Azul Y Negro - Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum (Spanish Edition) COMPLETAMENTE NUEVO",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare nostrum. Visiones de la Mediterrània en ...",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "mare Nostrum Julio Quaresma",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "El misterio del arca: Una aventura en el Mare Nostrum (Spanish Edition)",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Stormlord - mare Nostrum cd (heavy/black metal)",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "El misterio del arca: Una aventura en el Mare Nostrum (Spanish Edition)",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  },
+  {
+    "title": "Mare Nostrum",
+    "actual": "not_game",
+    "pred": "base",
+    "alert": "dario/Mare Nostrum"
+  }
+]
