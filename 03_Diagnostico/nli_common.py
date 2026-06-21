@@ -18,6 +18,11 @@ aqui). Si no esta, la API publica suele funcionar igual pero con cuota mas baja.
 import os
 import requests
 
+try:
+    from transformers import pipeline
+except ImportError:
+    pipeline = None
+
 # Categorias internas del clasificador (ver 01_Core/classifier.py).
 # Mapeo categoria -> etiqueta en lenguaje natural (en español, el idioma de los
 # anuncios). El orden no importa; HF puntua todas y gana la de mayor score.
@@ -93,3 +98,31 @@ def classify_nli_hf(text, model=None, timeout=30):
     best_score = data["scores"][0]
     category = _LABEL_TO_CAT.get(best_label, "unknown")
     return category, best_score, data
+
+
+def classify_nli_local(text, model=None, timeout=None):
+    """Clasifica `text` usando un modelo NLI LOCAL (transformers.pipeline,
+    sin pasar por HF Inference API). Devuelve (categoria, score, raw).
+
+    Requiere transformers instalado. Lanza NLIUnavailable si el modelo falla
+    a cargar o si transformers no esta disponible.
+    """
+    if pipeline is None:
+        raise NLIUnavailable("transformers no instalado; no se puede usar "
+                             "classify_nli_local()")
+    model = model or HF_MODELS[0]
+    try:
+        clf = pipeline("zero-shot-classification", model=model)
+    except Exception as e:
+        raise NLIUnavailable(f"no se pudo cargar el modelo {model}: {e}")
+
+    try:
+        result = clf(text, candidate_labels=list(LABELS.values()),
+                     hypothesis_template=HYPOTHESIS_TEMPLATE)
+    except Exception as e:
+        raise NLIUnavailable(f"error en la inferencia: {e}")
+
+    best_label = result["labels"][0]
+    best_score = result["scores"][0]
+    category = _LABEL_TO_CAT.get(best_label, "unknown")
+    return category, best_score, result

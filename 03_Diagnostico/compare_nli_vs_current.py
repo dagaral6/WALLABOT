@@ -1,9 +1,9 @@
 """
 compare_nli_vs_current.py
 -------------------------
-Fase 2 del plan de validacion NLI. Compara el clasificador NLI (HF Inference
-API) contra la categoria que el sistema ACTUAL (reglas + cascada LLM) ya asigno
-a cada anuncio, usando el dataset generado en la Fase 0.
+Fase 2 del plan de validacion NLI. Compara el clasificador NLI (modelo LOCAL
+con transformers) contra la categoria que el sistema ACTUAL (reglas + cascada
+LLM) ya asigno a cada anuncio, usando el dataset generado en la Fase 0.
 
 Mide:
   - Accuracy global y por categoria (acuerdo con el sistema actual).
@@ -12,14 +12,13 @@ Mide:
     que no lo es). El proyecto prioriza "ante la duda, dejar pasar", asi que un
     NLI demasiado estricto seria PEOR que el actual aunque su accuracy global
     parezca buena. Por eso se reporta aparte.
-  - Nº de llamadas y tiempo total (para estimar si la cuota gratis de HF cubre
-    el volumen real por ciclo de 2h).
+  - Tiempo total (para estimar viabilidad en GitHub Actions).
 
 Recuerda: el dataset es ground truth DEBIL (lo que el sistema actual decidio,
 no verdad verificada). Mide "acuerdo", no correccion absoluta.
 
     python compare_nli_vs_current.py            # todo el dataset
-    python compare_nli_vs_current.py 100        # primeros 100 casos (ahorra cuota)
+    python compare_nli_vs_current.py 100        # primeros 100 casos (mas rapido)
 """
 
 import os
@@ -79,7 +78,7 @@ def main():
         title = row.get("title") or ""
         actual = row.get("category") or "unknown"
         try:
-            nli_cat, _score, _ = nli_common.classify_nli_hf(title, model=model)
+            nli_cat, _score, _ = nli_common.classify_nli_local(title, model=model)
         except nli_common.NLIUnavailable as e:
             svc_fails += 1
             if svc_fails <= 5:
