@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-20 18:50:25 | Nuevas: Risk, Carcassone, Cities
+# 2026-06-23 12:09:59 | Nuevas: Camel Up
 
 email:
   smtp_host: smtp.gmail.com
@@ -69,6 +69,12 @@ alerts:
 - name: Cities
   keywords: cities
   max_price: 40
+  want:
+  - base
+  - lote
+- name: Camel Up
+  keywords: camel up
+  max_price: 35
   want:
   - base
   - lote
