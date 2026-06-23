@@ -50,6 +50,33 @@ logging.basicConfig(
 log = logging.getLogger("main")
 
 
+# Categoría(s) NATIVA(s) de Wallapop a las que se restringe la búsqueda
+# (juegos de mesa). Se rellena en main() desde bot_settings.yaml (search.
+# category_ids) vía configure_search(). Vacío = sin filtro (comportamiento de
+# siempre). Lista de IDs como str.
+_SEARCH_CATEGORY_IDS = []
+
+
+def configure_search(settings):
+    """Lee search.category_ids de bot_settings.yaml y fija el filtro global de
+    categoría. Tolerante: si falta la sección o el valor no es válido, deja el
+    filtro vacío (sin filtrar). Las env-vars no aplican aquí (ajuste global)."""
+    global _SEARCH_CATEGORY_IDS
+    ids = []
+    try:
+        raw = ((settings or {}).get("search") or {}).get("category_ids") or []
+        if isinstance(raw, (str, int)):
+            raw = [raw]
+        ids = [str(c).strip() for c in raw if str(c).strip()]
+    except Exception as e:
+        log.warning("search.category_ids inválido (%s); sin filtro de categoría.", e)
+        ids = []
+    _SEARCH_CATEGORY_IDS = ids
+    if ids:
+        log.info("Filtro de categoría Wallapop activo: category_ids=%s",
+                 ",".join(ids))
+
+
 def load_config(path=None):
     """Carga un config concreto. Sin 'path': usa el config.yaml legacy si
     existe; si no, el primer YAML de configs/ (compat para los scripts de
@@ -265,6 +292,7 @@ def process_alert(user_id, config, alert, notify_enabled=True):
         latitude=config["location"]["latitude"],
         longitude=config["location"]["longitude"],
         min_price=None, max_price=None,   # filtramos nosotros (bypass de lotes)
+        category_ids=_SEARCH_CATEGORY_IDS or None,   # categoría nativa (juegos de mesa)
     )
     raw_by_id = {it["id"]: it for it in results}
     raw_ids = set(raw_by_id)
@@ -276,6 +304,19 @@ def process_alert(user_id, config, alert, notify_enabled=True):
 
     # --- 1) NUEVOS: solo clasificamos los anuncios que no habíamos visto -----
     candidates = [it for it in results if it["id"] not in known]
+    # Filtro por CATEGORÍA nativa de Wallapop (red de seguridad al filtro
+    # server-side): descarta lo que no es juego de mesa antes de gastar LLM.
+    # Solo se cae un anuncio si TIENE category_id y NO está en la lista; si no
+    # trae category_id (campo ausente en el payload), no se descarta (no perder
+    # anuncios; se confía en el filtro server-side de scraper.search).
+    n_descartados_categoria = 0
+    if _SEARCH_CATEGORY_IDS:
+        allowed = set(_SEARCH_CATEGORY_IDS)
+        n_pre_cat = len(candidates)
+        candidates = [it for it in candidates
+                      if it.get("category_id") is None
+                      or str(it.get("category_id")) in allowed]
+        n_descartados_categoria = n_pre_cat - len(candidates)
     # Filtro de entrega (radio / envío) ANTES de clasificar: así no gastamos
     # LLM en anuncios que el usuario no podría recibir según su config.
     n_candidates = len(candidates)
@@ -301,6 +342,12 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     decided, new_kept = [], []
     for it in candidates:
         decision, category = evaluate(it, alert, config, cat_cache)
+        # Idioma detectado (es/ca/en/otro) para TODAS las filas. La descripción
+        # ya viene en `it` desde el scraper; database.add_items la guarda solo en
+        # 'keep'. detect_language reutiliza el gate looks_foreign_language, así
+        # que es consistente con category == 'foreign_language' (-> 'otro').
+        it["language"] = classifier.detect_language(
+            it.get("title", ""), it.get("description", ""))
         decided.append((it, category, decision))
         if decision == "keep":
             it["category"] = category
@@ -354,10 +401,12 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     rejected_ids = known - set(kept_rows)
     rejected_gone = rejected_ids - raw_ids
 
-    log.info("  -> [%s] %d resultados | %d nuevos | %d fuera por entrega | "
-             "%d aceptados | %d bajadas | %d recuperados | %d retirados",
-             user_id, len(results), n_candidates, n_descartados_entrega,
-             len(new_kept), len(price_drops), len(resurrected), len(sold_items))
+    log.info("  -> [%s] %d resultados | %d fuera por categoría | %d nuevos | "
+             "%d fuera por entrega | %d aceptados | %d bajadas | %d recuperados "
+             "| %d retirados",
+             user_id, len(results), n_descartados_categoria, n_candidates,
+             n_descartados_entrega, len(new_kept), len(price_drops),
+             len(resurrected), len(sold_items))
 
     database.add_items(db_key, decided)
     database.update_prices(db_key, price_updates)
@@ -509,7 +558,9 @@ def main():
     database.init_db()
     # Configura la cascada de LLM (orden, modelos, claves) desde bot_settings.yaml;
     # las variables de entorno (Secrets en CI) siguen teniendo prioridad.
-    classifier.configure_from_settings(config_inbox.load_settings())
+    _settings = config_inbox.load_settings()
+    classifier.configure_from_settings(_settings)
+    configure_search(_settings)   # filtro de categoría nativa (search.category_ids)
     configs = load_all_configs()
 
     if not configs:

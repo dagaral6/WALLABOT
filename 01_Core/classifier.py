@@ -130,6 +130,68 @@ def looks_foreign_language(title, description):
     return bool(_FOREIGN_LANG_RE.search(_normalize(f"{title} {description}")))
 
 
+# --- Idioma CONCRETO del anuncio: es / ca / en / otro -----------------------
+# Para el dataset de reentrenamiento queremos el idioma REAL del anuncio (no
+# solo "foreign sí/no"). Estrategia CONSISTENTE con looks_foreign_language():
+#   1) Si el gate lo marca foreign (fr/de/it/pt...) -> "otro".
+#   2) Si no, se decide entre es/ca/en por marcadores INEQUÍVOCOS de cada
+#      idioma, puntuando con vocabulario ESPECÍFICO (no compartido) para que un
+#      anuncio catalán no sume a la vez en "es" por usar "de"/"la". _normalize()
+#      conserva ç, è y l·l, señales fuertes de catalán.
+# NO altera la clasificación ni el filtrado: solo etiqueta para almacenar.
+# LIMITACIÓN CONOCIDA: separar es/ca con heurística no es perfecto. Ante empate
+# o ausencia de señal se devuelve "es" (lo más común en Wallapop España); un
+# único marcador inglés (probable TÍTULO de juego en inglés vendido por
+# hispanohablante, p. ej. "The Lord of the Rings") tampoco basta para "en".
+# Para más precisión, sustituir por una librería ligera (p. ej. langdetect).
+_LANG_CA_VOCAB = [
+    "amb", "què", "fins", "joc", "jocs", "taula", "tauler", "caixa", "cartes",
+    "està", "també", "aquest", "aquesta", "molt", "preu", "venc", "tinc",
+    "inclou", "els", "les", "com nou", "perfecte", "complet", "lliure",
+    "nou de trinca",
+]
+_LANG_ES_VOCAB = [
+    "los", "las", "con", "para", "muy", "nuevo", "nueva", "estado", "precio",
+    "vendo", "juego", "juegos", "mesa", "caja", "tablero", "incluye",
+    "completo", "completa", "como nuevo", "sin estrenar", "perfecto",
+    "perfecta", "tambien", "sellado", "reservado", "negociable",
+]
+_LANG_EN_VOCAB = [
+    "the", "and", "with", "for", "this", "are", "you", "your", "from", "have",
+    "board game", "brand new", "like new", "shipping", "sealed", "includes",
+    "condition", "english", "never played", "great condition", "selling",
+]
+_LANG_CA_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _LANG_CA_VOCAB) + r")\b")
+_LANG_ES_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _LANG_ES_VOCAB) + r")\b")
+_LANG_EN_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _LANG_EN_VOCAB) + r")\b")
+
+
+def detect_language(title, description=""):
+    """Idioma del anuncio: 'es' | 'ca' | 'en' | 'otro'. Consistente con
+    looks_foreign_language() (si ese gate marca foreign -> 'otro')."""
+    if looks_foreign_language(title, description):
+        return "otro"
+    norm = _normalize(f"{title} {description}")
+    ca = len(_LANG_CA_RE.findall(norm))
+    # ç y l·l no casan bien con \b (son letras / llevan '·'): se cuentan aparte
+    # y, dentro de no-foreign, son señal fuerte de catalán.
+    if "ç" in norm:
+        ca += 1
+    if "l·l" in norm:
+        ca += 1
+    es = len(_LANG_ES_RE.findall(norm))
+    en = len(_LANG_EN_RE.findall(norm))
+
+    if ca and ca >= es and ca >= en:
+        return "ca"
+    if en >= 2 and en > es:
+        return "en"
+    return "es"
+
+
 # --- Detección ESTRUCTURAL de ráfaga de tags (spam SEO sin marcador) ---------
 # Algunos vendedores pegan al final una ristra de nombres de juegos separados
 # por comas (sin "Tags:" delante) para salir en más búsquedas. La detectamos por

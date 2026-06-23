@@ -84,6 +84,10 @@ def _normalize_item(raw):
         "price": price,
         "url": url,
         "image": image,
+        # Categoría NATIVA de Wallapop (la elige el vendedor al publicar). Sirve
+        # para filtrar lo que no es juego de mesa (p. ej. 'cities' trae
+        # videojuegos/libros). Puede venir como int o str; se guarda tal cual.
+        "category_id": raw.get("category_id"),
         # Datos para el filtro de entrega (radio / envío):
         "is_shippable": bool(shipping.get("item_is_shippable"))
         and bool(shipping.get("user_allows_shipping")),
@@ -115,6 +119,7 @@ def _extract_next_page(payload):
 
 
 def search(keywords, latitude, longitude, min_price=None, max_price=None,
+           category_ids=None,
            max_items=200, max_pages=40, page_pause=0.4, retries=2):
     """
     Sigue la paginación (meta.next_page) hasta agotar resultados o límites.
@@ -123,6 +128,12 @@ def search(keywords, latitude, longitude, min_price=None, max_price=None,
     aporta anuncios nuevos o no hay más token, paramos. Así, si el mecanismo de
     paginación fallara, en el peor caso devolvemos la primera página (sin
     bucles infinitos).
+
+    category_ids: lista/iterable de IDs de categoría NATIVA de Wallapop para
+    restringir la búsqueda en el servidor (p. ej. juegos de mesa). Si se indica,
+    la paginación devuelve solo esa categoría, así los juegos de mesa reales no
+    quedan sepultados bajo ruido (videojuegos, libros...) en keywords genéricas.
+    Vacío/None = sin filtro (comportamiento de siempre).
 
     Parámetros que puedes ajustar si hiciera falta:
       max_items  -> tope de anuncios a recopilar por búsqueda
@@ -139,6 +150,10 @@ def search(keywords, latitude, longitude, min_price=None, max_price=None,
         base_params["min_sale_price"] = min_price
     if max_price is not None:
         base_params["max_sale_price"] = max_price
+    if category_ids:
+        # La API acepta varias categorías separadas por coma.
+        base_params["category_ids"] = ",".join(
+            str(c).strip() for c in category_ids if str(c).strip())
 
     all_items = []
     seen_ids = set()

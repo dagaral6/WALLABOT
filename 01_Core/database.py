@@ -28,9 +28,11 @@ CREATE TABLE IF NOT EXISTS seen_items (
     title      TEXT,
     price      REAL,
     url        TEXT,
-    category   TEXT,
-    decision   TEXT,                       -- 'keep' | 'reject'
-    first_seen TEXT DEFAULT (datetime('now')),
+    category    TEXT,
+    decision    TEXT,                      -- 'keep' | 'reject'
+    description TEXT,                       -- texto del anuncio; solo en 'keep'
+    language    TEXT,                       -- idioma detectado: es | ca | en | otro
+    first_seen  TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (alert_name, item_id)
 );
 """
@@ -38,8 +40,11 @@ CREATE TABLE IF NOT EXISTS seen_items (
 # Columnas que deben existir (para migrar bases antiguas sin perder datos).
 # deleted_reason/deleted_at marcan el HISTORICO de alertas eliminadas: las filas
 # no se borran, solo se anotan (base para una futura capa de consulta).
+# description/language: texto del anuncio (solo 'keep') e idioma detectado
+# (es/ca/en/otro), para el dataset de reentrenamiento del clasificador/NLI.
 _REQUIRED_COLS = {"category": "TEXT", "decision": "TEXT",
-                  "deleted_reason": "TEXT", "deleted_at": "TEXT"}
+                  "deleted_reason": "TEXT", "deleted_at": "TEXT",
+                  "description": "TEXT", "language": "TEXT"}
 
 # Motivos validos al eliminar una alerta (fuente unica de verdad; el HTML y
 # config_inbox.py usan estos mismos valores internos).
@@ -133,16 +138,28 @@ def add_items(alert_name, decided_items, db_path=None):
     """
     Inserta anuncios ya clasificados.
     decided_items: lista de tuplas (item_dict, category, decision).
+
+    Además de los campos de siempre guarda:
+      - description: el texto del anuncio (item_dict['description']), SOLO cuando
+        decision == 'keep'. En 'reject' queda NULL para no inflar la BD (que se
+        versiona en git). Cadena vacía se normaliza a NULL.
+      - language: idioma detectado (item_dict['language']: es/ca/en/otro) en
+        TODAS las filas. Lo calcula main.evaluate()/process_alert vía
+        classifier.detect_language antes de llamar aquí.
     """
     if not decided_items:
         return
     with _conn(db_path) as c:
         c.executemany(
             """INSERT OR IGNORE INTO seen_items
-               (alert_name, item_id, title, price, url, category, decision)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               (alert_name, item_id, title, price, url, category, decision,
+                description, language)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [(alert_name, it["id"], it["title"], it["price"], it["url"],
-              cat, dec) for (it, cat, dec) in decided_items])
+              cat, dec,
+              ((it.get("description") or None) if dec == "keep" else None),
+              it.get("language"))
+             for (it, cat, dec) in decided_items])
 
 
 def delete_items(alert_name, item_ids, db_path=None):
