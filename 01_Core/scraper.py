@@ -14,6 +14,15 @@ log = logging.getLogger("wallapop")
 
 SEARCH_URL = "https://api.wallapop.com/api/v3/search"
 
+# Idioma de los textos devueltos. Wallapop TRADUCE automáticamente title y
+# description al idioma de Accept-Language; con "es-ES" un anuncio italiano
+# llega en español y se pierde la señal de idioma (y de paso el texto deja de
+# ser el que escribió el vendedor). Con None NO enviamos la cabecera, así la API
+# devuelve el TEXTO ORIGINAL del anuncio. Para volver a recibir todo traducido
+# al español, pon: ACCEPT_LANGUAGE = "es-ES,es;q=0.9".
+# (Confirmar con: py 03_Diagnostico/probe_original_text.py "catan")
+ACCEPT_LANGUAGE = None
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -21,9 +30,10 @@ HEADERS = {
         "Chrome/124.0.0.0 Safari/537.36"
     ),
     "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "es-ES,es;q=0.9",
     "X-DeviceOS": "0",
 }
+if ACCEPT_LANGUAGE:
+    HEADERS["Accept-Language"] = ACCEPT_LANGUAGE
 
 
 def _to_float(value):
