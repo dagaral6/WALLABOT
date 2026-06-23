@@ -49,16 +49,22 @@ reply_confirmation: true
 # ropa, libros o videojuegos y los juegos de mesa reales no queden sepultados.
 # La API filtra por ID NUMERICO, no por nombre ("Juegos recreativos y de mesa").
 #
-# category_ids: lista de IDs de categoria. VACIO = sin filtro (comportamiento
-# de siempre). Para obtener el ID real desde tus propios resultados:
-#     py 03_Diagnostico/probe_categories.py "catan"
-#     py 03_Diagnostico/probe_categories.py "cities"
-# Mira que category_id COMPARTEN los juegos de mesa de verdad y pegalo aqui.
-# Tras activarlo, valida con una pasada: `py main.py --once --force` y revisa
-# en el log "resultados" y "fuera por categoria" (si "resultados" cae a 0, el
-# ID no es correcto: vuelve a mirar el probe).
+# category_ids: lista de IDs de categoria. VACIO = sin filtro. Mapeo observado
+# en los datos reales (jun 2026; si Wallapop los cambia, re-ejecuta el probe):
+#   12579 = Juegos de mesa            -> SI (juegos de mesa puros)
+#   12461 = Juegos y juguetes         -> SI (Catan, Carcassonne, Ark Nova...; el
+#                                            ruido de juguete/bebe lo descarta el
+#                                            gate de titulo)
+#   12463 = Libros        24200 = Videojuegos     18000 = Coleccionismo
+#   12465 = Moda          200   = Inmobiliaria    12467/13100/19000/20000 = electronica/herramientas
+#   17000 = Bicis  ...    -> NO (estos eran el ruido: libros "Mare Nostrum",
+#                                Frostpunk PS4, Warhammer "Cities of Sigmar"...)
+# Para revisar/ajustar: cada anuncio guarda su category_id en la BD y el HTML de
+# revision lo muestra ("cat. Wallapop #..."). Mas precision -> deja solo [12579];
+# si ves que pierdes algun juego, mira su category_id y anadelo aqui.
+# Re-descubrir IDs: py 03_Diagnostico/probe_categories.py "catan"
 search:
-  category_ids: []        # p. ej. [12345]; vacio = sin filtro
+  category_ids: [12579, 12461]   # juegos de mesa + juegos/juguetes
 
 
 # ============================================================
