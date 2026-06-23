@@ -39,6 +39,33 @@ def _to_float(value):
         return None
 
 
+def _extract_category_id(raw):
+    """category_id NATIVO de Wallapop, tolerante a variaciones del payload de
+    búsqueda (el campo no siempre se llama igual ni vive al mismo nivel).
+    Devuelve el valor tal cual (str|int) o None. Orden de búsqueda:
+    claves planas -> objeto 'category' anidado -> 'taxonomy'."""
+    if not isinstance(raw, dict):
+        return None
+    for k in ("category_id", "categoryId", "category_id_v2", "vertical_id"):
+        v = raw.get(k)
+        if v not in (None, ""):
+            return v
+    cat = raw.get("category")
+    if isinstance(cat, dict):
+        for k in ("id", "category_id", "categoryId"):
+            v = cat.get(k)
+            if v not in (None, ""):
+                return v
+    elif isinstance(cat, (int, str)) and str(cat).strip():
+        return cat
+    tax = raw.get("taxonomy")
+    if isinstance(tax, list) and tax and isinstance(tax[0], dict):
+        v = tax[0].get("id") or tax[0].get("category_id")
+        if v not in (None, ""):
+            return v
+    return None
+
+
 def _normalize_item(raw):
     item_id = raw.get("id") or raw.get("item_id")
     title = raw.get("title") or raw.get("name") or ""
@@ -85,9 +112,9 @@ def _normalize_item(raw):
         "url": url,
         "image": image,
         # Categoría NATIVA de Wallapop (la elige el vendedor al publicar). Sirve
-        # para filtrar lo que no es juego de mesa (p. ej. 'cities' trae
-        # videojuegos/libros). Puede venir como int o str; se guarda tal cual.
-        "category_id": raw.get("category_id"),
+        # para filtrar lo que no es juego de mesa (p. ej. 'cities'/'mare nostrum'
+        # traen libros, CDs, videojuegos). Puede venir como int o str.
+        "category_id": _extract_category_id(raw),
         # Datos para el filtro de entrega (radio / envío):
         "is_shippable": bool(shipping.get("item_is_shippable"))
         and bool(shipping.get("user_allows_shipping")),

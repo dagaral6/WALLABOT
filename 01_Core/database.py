@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS seen_items (
     decision    TEXT,                      -- 'keep' | 'reject'
     description TEXT,                       -- texto del anuncio; solo en 'keep'
     language    TEXT,                       -- idioma detectado: es | ca | en | otro
+    category_id TEXT,                       -- categoría NATIVA Wallapop (no la del bot)
     first_seen  TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (alert_name, item_id)
 );
@@ -42,9 +43,12 @@ CREATE TABLE IF NOT EXISTS seen_items (
 # no se borran, solo se anotan (base para una futura capa de consulta).
 # description/language: texto del anuncio (solo 'keep') e idioma detectado
 # (es/ca/en/otro), para el dataset de reentrenamiento del clasificador/NLI.
+# category_id: categoría NATIVA de Wallapop (la del vendedor), para filtrar/ver
+# lo que no es juego de mesa (libros, CDs, videojuegos...).
 _REQUIRED_COLS = {"category": "TEXT", "decision": "TEXT",
                   "deleted_reason": "TEXT", "deleted_at": "TEXT",
-                  "description": "TEXT", "language": "TEXT"}
+                  "description": "TEXT", "language": "TEXT",
+                  "category_id": "TEXT"}
 
 # Motivos validos al eliminar una alerta (fuente unica de verdad; el HTML y
 # config_inbox.py usan estos mismos valores internos).
@@ -146,19 +150,26 @@ def add_items(alert_name, decided_items, db_path=None):
       - language: idioma detectado (item_dict['language']: es/ca/en/otro) en
         TODAS las filas. Lo calcula main.evaluate()/process_alert vía
         classifier.detect_language antes de llamar aquí.
+      - category_id: categoría NATIVA de Wallapop (item_dict['category_id']) en
+        TODAS las filas; se guarda como texto (o NULL si no vino en el payload).
     """
     if not decided_items:
         return
+
+    def _cat(it):
+        v = it.get("category_id")
+        return str(v) if v not in (None, "") else None
+
     with _conn(db_path) as c:
         c.executemany(
             """INSERT OR IGNORE INTO seen_items
                (alert_name, item_id, title, price, url, category, decision,
-                description, language)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                description, language, category_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [(alert_name, it["id"], it["title"], it["price"], it["url"],
               cat, dec,
               ((it.get("description") or None) if dec == "keep" else None),
-              it.get("language"))
+              it.get("language"), _cat(it))
              for (it, cat, dec) in decided_items])
 
 
