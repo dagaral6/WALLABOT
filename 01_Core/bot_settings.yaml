@@ -42,6 +42,26 @@ allowed_senders:
 reply_confirmation: true
 
 # ============================================================
+#  BUSQUEDA — filtro por CATEGORIA nativa de Wallapop
+# ============================================================
+# Restringe TODAS las busquedas a la categoria de juegos de mesa de Wallapop,
+# para que keywords genericas (p. ej. "cities", "mare nostrum") dejen de traer
+# ropa, libros o videojuegos y los juegos de mesa reales no queden sepultados.
+# La API filtra por ID NUMERICO, no por nombre ("Juegos recreativos y de mesa").
+#
+# category_ids: lista de IDs de categoria. VACIO = sin filtro (comportamiento
+# de siempre). Para obtener el ID real desde tus propios resultados:
+#     py 03_Diagnostico/probe_categories.py "catan"
+#     py 03_Diagnostico/probe_categories.py "cities"
+# Mira que category_id COMPARTEN los juegos de mesa de verdad y pegalo aqui.
+# Tras activarlo, valida con una pasada: `py main.py --once --force` y revisa
+# en el log "resultados" y "fuera por categoria" (si "resultados" cae a 0, el
+# ID no es correcto: vuelve a mirar el probe).
+search:
+  category_ids: []        # p. ej. [12345]; vacio = sin filtro
+
+
+# ============================================================
 #  LLM — cascada de clasificacion (comun a TODOS los usuarios)
 # ============================================================
 # Se prueban en orden y gana el PRIMERO que responde; 'rules' es el terminal
