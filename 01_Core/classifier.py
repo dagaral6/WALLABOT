@@ -101,33 +101,87 @@ def _has_lote_vocab(text):
 
 # --- Idioma del anuncio: solo nos interesan español, catalán e inglés -------
 # Si el propio anuncio (título/descripción) está en otro idioma, asumimos que
-# el juego también lo está y lo descartamos. Vocabulario DELIBERADAMENTE
-# inequívoco (palabras/frases que no existen en es/ca/en) para no rechazar
-# por error un anuncio en los idiomas que sí interesan. _normalize() solo
-# quita tildes españolas (á é í ó ú ñ), así que las marcas propias de otros
-# idiomas (è, ç, ü, ã...) se conservan intactas para esta comprobación.
+# el juego también lo está y lo descartamos. Dos mecanismos GENERALES (no listas
+# de ejemplos concretos):
+#   1) Vocabulario funcional de ALTA FRECUENCIA por idioma (artículos,
+#      preposiciones, verbos de venta, términos de juego) DELIBERADAMENTE
+#      inequívoco: palabras que no existen como tales en es/ca/en, para no
+#      rechazar por error un anuncio en los idiomas que sí interesan.
+#   2) Declaración explícita del idioma del juego escrita en español
+#      ("edición italiana", "en alemán", "idioma X"...): se mapea a idioma y
+#      solo marca foreign si ese idioma NO es es/ca/en (el inglés está permitido).
+# _normalize() solo quita tildes españolas (á é í ó ú ñ); las marcas propias de
+# otros idiomas (è, ç, ü, ã, î, ô...) se conservan intactas para esta detección.
 _FOREIGN_LANG_VOCAB = [
-    # frances
-    "très", "avec", "français", "française", "jeu de société",
-    "vendu", "neuf", "état",
-    # aleman
-    "und", "sehr", "gebraucht", "verkaufe", "zustand", "spiel",
-    "neuwertig", "versand",
-    # italiano
-    "gioco da tavolo", "ottime condizioni", "usato", "nuovo di zecca",
-    "perfetto", "vendo il gioco",
-    # portugues
-    "jogo de tabuleiro", "tabuleiro", "muito bom estado", "perfeito", "não",
+    # --- francés ---
+    "très", "avec", "français", "française", "jeu", "jeu de société",
+    "vendu", "neuf", "état", "boîte", "règles", "pour", "complet avec",
+    # --- alemán ---
+    "und", "sehr", "gebraucht", "verkaufe", "zustand", "spiel", "spiele",
+    "neuwertig", "versand", "der", "das", "mit", "für", "nicht", "neu",
+    "ein", "brettspiel", "würfel", "karten", "deutsch", "deutsche", "ovp",
+    # --- italiano ---
+    "gioco da tavolo", "gioco", "giochi", "giocatori", "edizione",
+    "espansione", "espansioni", "scatola", "ottime condizioni", "usato",
+    "nuovo di zecca", "nuovo", "perfetto", "della", "dei", "delle", "degli",
+    "lingua", "da tavolo", "tedesca", "tedesco", "con scatola",
+    # --- portugués ---
+    "jogo de tabuleiro", "tabuleiro", "jogo", "jogos", "muito bom estado",
+    "perfeito", "não", "edição", "expansão", "versão", "português",
+    "portuguesa", "peças", "muito",
+    # --- neerlandés ---
+    "bordspel", "spel", "spellen", "uitbreiding", "het", "een", "nieuw",
+    "gebruikt", "nederlands", "kaarten", "compleet", "basisspel",
+    "kolonisten", "zo goed als nieuw",
 ]
 _FOREIGN_LANG_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(w) for w in _FOREIGN_LANG_VOCAB) + r")\b")
 
+# Declaración explícita, en español, de que el JUEGO está en otro idioma.
+# Solo idiomas NO permitidos (es/ca/en quedan fuera de la lista a propósito:
+# "edición inglesa" / "en castellano" NO deben marcar foreign).
+_FOREIGN_DECLARED = (r"italiano|italiana|aleman|alemana|frances|francesa|"
+                     r"portugues|portuguesa|neerlandes|neerlandesa|"
+                     r"holandes|holandesa")
+_FOREIGN_DECL_RE = re.compile(
+    r"\b(?:en|edicion|edicio|idioma|version|lengua|texto en|todo en|"
+    r"completamente en|solo en|unicamente en)\s+"
+    r"(?:" + _FOREIGN_DECLARED + r")\b")
+
 
 def looks_foreign_language(title, description):
-    """True si el título o la descripción tienen vocabulario inequívoco de un
-    idioma que no sea español, catalán o inglés (señal de que el juego mismo
-    está en ese idioma)."""
-    return bool(_FOREIGN_LANG_RE.search(_normalize(f"{title} {description}")))
+    """True si el título o la descripción indican que el juego está en un idioma
+    distinto de español, catalán o inglés: por vocabulario inequívoco del idioma
+    o por una declaración explícita en español ("edición italiana", "en alemán").
+
+    EXCEPCIÓN (override): no se marca foreign si el anuncio indica que el juego
+    es JUGABLE en un idioma permitido —"independiente del idioma", o reglas/
+    instrucciones/edición en español/castellano/catalán/inglés—. Muchas ediciones
+    extranjeras son language-independent o traen reglas en español; ahí el idioma
+    de la caja es irrelevante para el comprador. El override usa señales EN
+    ESPAÑOL/permitidas, que no aparecen en una descripción genuinamente en otro
+    idioma, así que no deja pasar juegos realmente inservibles por idioma.
+    """
+    norm = _normalize(f"{title} {description}")
+    if not (_FOREIGN_LANG_RE.search(norm) or _FOREIGN_DECL_RE.search(norm)):
+        return False
+    if _PLAYABLE_OK_RE.search(norm):
+        return False
+    return True
+
+
+# Señales de que el juego es usable en un idioma permitido (override del gate).
+# Independencia de idioma + mención de español/castellano/catalán/inglés. Son
+# términos EN ESPAÑOL/permitidos: no aparecen en prosa genuinamente extranjera.
+_PLAYABLE_OK = [
+    "independiente del idioma", "independiente de idioma", "idioma independiente",
+    "independiente del lenguaje", "no depende del idioma", "idioma irrelevante",
+    "language independent", "language-independent", "no necesita idioma",
+    "espanol", "castellano", "catalan", "valencià", "valenciano",
+    "ingles", "english",
+]
+_PLAYABLE_OK_RE = re.compile(
+    r"\b(?:" + "|".join(re.escape(w) for w in _PLAYABLE_OK) + r")\b")
 
 
 # --- Idioma CONCRETO del anuncio: es / ca / en / otro -----------------------
