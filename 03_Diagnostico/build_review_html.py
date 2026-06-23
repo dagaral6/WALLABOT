@@ -40,11 +40,13 @@ def load_keep_rows(db_path):
     cols = {r["name"] for r in con.execute("PRAGMA table_info(seen_items)")}
     has_desc = "description" in cols
     has_lang = "language" in cols
+    has_catid = "category_id" in cols
     desc_sql = "description" if has_desc else "'' AS description"
     lang_sql = "language" if has_lang else "NULL AS language"
+    catid_sql = "category_id" if has_catid else "NULL AS category_id"
     rows = con.execute(
         f"""SELECT alert_name, item_id, title, price, url, category, decision,
-                   {desc_sql}, {lang_sql}, first_seen
+                   {desc_sql}, {lang_sql}, {catid_sql}, first_seen
             FROM seen_items WHERE decision='keep'
             ORDER BY category, alert_name, title""").fetchall()
     con.close()
@@ -60,6 +62,7 @@ def load_keep_rows(db_path):
             "decision": r["decision"] or "",
             "description": r["description"] or "",
             "language": r["language"] or "",
+            "category_id": (str(r["category_id"]) if r["category_id"] not in (None, "") else ""),
             "first_seen": r["first_seen"] or "",
         })
     return data, has_desc, has_lang
@@ -302,7 +305,7 @@ _HTML = r"""<!DOCTYPE html>
 </div>
 
 <div class="note">
-  El JSONL incluye por anuncio: <code>item_id</code>, <code>title</code>, <code>description</code>, <code>language</code>, <code>category</code> (la actual), <code>decision</code>, <code>price</code>, <code>url</code>, <code>alert_name</code>, <code>bien_clasificado</code>, <code>motivo</code> y <code>revisado</code>. Cargando ese mismo archivo con <b>Importar</b> recuperas el estado.
+  El JSONL incluye por anuncio: <code>item_id</code>, <code>title</code>, <code>description</code>, <code>language</code>, <code>category_id</code> (categoría nativa Wallapop), <code>category</code> (la del bot), <code>decision</code>, <code>price</code>, <code>url</code>, <code>alert_name</code>, <code>bien_clasificado</code>, <code>motivo</code> y <code>revisado</code>. Cargando ese mismo archivo con <b>Importar</b> recuperas el estado.
 </div>
 
 <script>
@@ -396,7 +399,9 @@ function buildRow(d, n){
   bd.textContent = d.category || "—";
   const lg = document.createElement("span"); lg.className = "lang " + langClass(d.language);
   lg.textContent = d.language || "?";
-  tdCat.append(bd, document.createElement("br"), lg);
+  const cat = document.createElement("span"); cat.className = "deco";
+  cat.textContent = d.category_id ? ("cat. Wallapop #" + d.category_id) : "cat. Wallapop: ?";
+  tdCat.append(bd, document.createElement("br"), lg, cat);
 
   const tdOk = document.createElement("td"); tdOk.className = "c-ok";
   const labO = document.createElement("label"); labO.className = "chk";
@@ -483,7 +488,8 @@ function records(){
     const e = edits[d.item_id];
     return {
       item_id: d.item_id, title: d.title, description: d.description,
-      language: d.language, category: d.category, decision: d.decision,
+      language: d.language, category_id: d.category_id,
+      category: d.category, decision: d.decision,
       price: d.price, url: d.url, alert_name: d.alert_name,
       bien_clasificado: e.ok, motivo: e.m.trim(), revisado: e.r
     };
@@ -499,7 +505,7 @@ function csvCell(v){
   return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
 }
 function exportCsv(){
-  const cols = ["item_id","title","description","language","category","decision","price","url","alert_name","bien_clasificado","motivo","revisado"];
+  const cols = ["item_id","title","description","language","category_id","category","decision","price","url","alert_name","bien_clasificado","motivo","revisado"];
   const lines = [cols.join(",")];
   for(const r of records()) lines.push(cols.map(c => csvCell(r[c])).join(","));
   download("wallapop_revision_keep.csv", "\ufeff" + lines.join("\n"), "text/csv;charset=utf-8");

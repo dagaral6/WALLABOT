@@ -75,7 +75,7 @@ def _search_no_ssl(kw, pages=3):
             it = scraper._normalize_item(r)
             if it["id"] and it["id"] not in seen:
                 seen.add(it["id"])
-                rows.append((it, _raw_name(r) if isinstance(r, dict) else ""))
+                rows.append((it, _raw_name(r) if isinstance(r, dict) else "", r))
         token = scraper._extract_next_page(payload)
         if not raw or not token:
             break
@@ -90,9 +90,20 @@ def main():
         print("Sin resultados.")
         return 1
 
+    # Volcado de las claves CRUDAS de los 2 primeros anuncios (para confirmar
+    # cómo se llama el campo de categoría en el payload).
+    print("Claves crudas del primer anuncio (para diagnóstico):")
+    for it, _, r in rows[:1]:
+        if isinstance(r, dict):
+            print("  keys:", sorted(r.keys()))
+            for k in list(r.keys()):
+                if "categ" in k.lower() or "vertical" in k.lower() or "taxonom" in k.lower():
+                    print(f"    {k} = {r.get(k)!r}")
+    print()
+
     by_cat = defaultdict(list)          # category_id -> [(title, name)]
     sin_id = 0
-    for it, name in rows:
+    for it, name, _ in rows:
         cid = it.get("category_id")
         if cid is None:
             sin_id += 1
