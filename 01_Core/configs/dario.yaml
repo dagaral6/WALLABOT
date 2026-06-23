@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-23 12:09:59 | Nuevas: Camel Up
+# 2026-06-23 14:09:54 | Nuevas: Rising Sun
 
 email:
   smtp_host: smtp.gmail.com
@@ -75,6 +75,12 @@ alerts:
 - name: Camel Up
   keywords: camel up
   max_price: 35
+  want:
+  - base
+  - lote
+- name: Rising Sun
+  keywords: rising sun
+  max_price: 90
   want:
   - base
   - lote
