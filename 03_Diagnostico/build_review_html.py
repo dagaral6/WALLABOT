@@ -4,11 +4,15 @@ build_review_html.py
 Genera la tabla de revisión interactiva (HTML autónomo) a partir de la BD,
 para etiquetar el dataset de reentrenamiento del clasificador/NLI.
 
-Saca los anuncios NOTIFICADOS (decision = 'keep') con: título, descripción,
-idioma detectado (es/ca/en/otro), categoría, precio, enlace y alerta. Cada fila
-lleva una casilla "¿Bien clasificado?" y un campo "motivo / categoría correcta".
-El HTML exporta a JSONL (listo para reentrenar) y CSV, e importa de vuelta para
-retomar el trabajo.
+Saca TODOS los anuncios vistos: los NOTIFICADOS (decision = 'keep', con
+descripción) y los DESCARTADOS (decision = 'reject'; sin descripción guardada,
+pero con su motivo de rechazo en la columna 'category': no_title_match,
+foreign_language, excluded, components...). Por cada fila: título, idioma
+detectado, categoría/motivo, precio, enlace, alerta y decisión. Cada fila lleva
+una casilla "¿Bien clasificado?" y un campo "motivo / categoría correcta".
+Filtros por alerta y por decisión (keep/reject) para revisar sin ruido.
+El HTML exporta a JSONL (listo para afinar el NLI) y CSV, e importa de vuelta
+para retomar el trabajo.
 
 Uso:
     py build_review_html.py
@@ -34,7 +38,7 @@ except Exception:
     pass
 
 
-def load_keep_rows(db_path):
+def load_rows(db_path):
     con = sqlite3.connect(db_path)
     con.row_factory = sqlite3.Row
     cols = {r["name"] for r in con.execute("PRAGMA table_info(seen_items)")}
@@ -44,11 +48,13 @@ def load_keep_rows(db_path):
     desc_sql = "description" if has_desc else "'' AS description"
     lang_sql = "language" if has_lang else "NULL AS language"
     catid_sql = "category_id" if has_catid else "NULL AS category_id"
+    # keep + reject. keep primero; los reject no tienen descripcion guardada pero
+    # si su motivo de rechazo en 'category'.
     rows = con.execute(
         f"""SELECT alert_name, item_id, title, price, url, category, decision,
                    {desc_sql}, {lang_sql}, {catid_sql}, first_seen
-            FROM seen_items WHERE decision='keep'
-            ORDER BY category, alert_name, title""").fetchall()
+            FROM seen_items
+            ORDER BY decision DESC, alert_name, category, title""").fetchall()
     con.close()
     data = []
     for r in rows:
@@ -82,22 +88,20 @@ def main():
     if not os.path.exists(db_path):
         print(f"ERROR: no encuentro la BD: {db_path}")
         return 1
-    data, has_desc, has_lang = load_keep_rows(db_path)
+    data, has_desc, has_lang = load_rows(db_path)
     html = build_html(data)
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(html)
+    n_keep = sum(1 for d in data if d["decision"] == "keep")
+    n_reject = sum(1 for d in data if d["decision"] == "reject")
     con_desc = sum(1 for d in data if d["description"].strip())
     print(f"BD:     {db_path}")
     print(f"Salida: {out_path}")
-    print(f"Anuncios keep: {len(data)}")
+    print(f"Anuncios: {len(data)}  (keep={n_keep}, reject={n_reject})")
     print(f"  con descripción guardada: {con_desc}"
           + ("" if has_desc else "  (columna 'description' AUSENTE en la BD)"))
     if not has_lang:
         print("  AVISO: columna 'language' ausente en la BD.")
-    if has_desc and con_desc == 0:
-        print("  AVISO: ningún 'keep' tiene descripción. ¿Lanzaste una pasada "
-              "con el código nuevo? (¿la búsqueda de Wallapop devuelve "
-              "descripción? -> py probe_descriptions.py)")
     return 0
 
 
@@ -200,6 +204,8 @@ _HTML = r"""<!DOCTYPE html>
   .badge.lote{color:var(--lote);background:var(--lote-soft);border-color:#ddd2ee}
   .badge.expansion{color:var(--expansion);background:var(--expansion-soft);border-color:#c9e8e2}
   .badge.other{color:var(--muted);background:#eef1f2;border-color:var(--line-strong)}
+  .badge.keep{color:#1f6b4e;background:#e4f3ec;border-color:#c5e6d6}
+  .badge.reject{color:var(--warn);background:var(--warn-soft);border-color:var(--warn-line)}
   .lang{display:inline-block;margin-top:6px;font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:5px;border:1px solid transparent}
   .lang.es{color:#1f6b4e;background:#e4f3ec;border-color:#c5e6d6}
   .lang.ca{color:#7a3ea0;background:#f1e8f8;border-color:#e0cef0}
@@ -234,8 +240,8 @@ _HTML = r"""<!DOCTYPE html>
 <header>
   <div class="head-inner">
     <div class="eyebrow">Wallapop Alerts · entrenamiento del clasificador</div>
-    <h1>Revisión de anuncios notificados <span class="count" id="hCount">0</span></h1>
-    <div class="sub">Anuncios con decisión <b>keep</b>: título, descripción e idioma detectado. Marca si la clasificación es correcta; si no, escribe el motivo o la categoría correcta. Exporta a JSONL para reentrenar / afinar el NLI.</div>
+    <h1>Revisión de anuncios <span class="count" id="hCount">0</span></h1>
+    <div class="sub">Anuncios <b>keep</b> (notificados, con descripción) y <b>reject</b> (descartados; sin descripción, con el motivo de rechazo en «categoría»). Marca si la clasificación es correcta; si no, escribe el motivo. Filtra por alerta y decisión. Exporta a JSONL para afinar el NLI.</div>
 
     <div class="stats">
       <div class="stat"><div class="n" id="sTotal">0</div><div class="l">Total</div></div>
@@ -258,11 +264,16 @@ _HTML = r"""<!DOCTYPE html>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="q" type="search" placeholder="Buscar en título o descripción…" autocomplete="off">
     </div>
+    <select id="fAlert">
+      <option value="">Todas las alertas</option>
+    </select>
+    <select id="fDecision">
+      <option value="">keep + reject</option>
+      <option value="keep">solo keep</option>
+      <option value="reject">solo reject</option>
+    </select>
     <select id="fCat">
-      <option value="">Todas las categorías</option>
-      <option value="base">base</option>
-      <option value="lote">lote</option>
-      <option value="expansion">expansion</option>
+      <option value="">Categorías / motivos</option>
     </select>
     <select id="fLang">
       <option value="">Todos los idiomas</option>
@@ -295,7 +306,7 @@ _HTML = r"""<!DOCTYPE html>
         <th class="c-idx">#</th>
         <th class="c-rev">Revisado</th>
         <th>Anuncio · descripción</th>
-        <th class="c-cat">Categoría · idioma</th>
+        <th class="c-cat">Decisión · categoría · idioma</th>
         <th class="c-ok">¿Bien clasificado?</th>
         <th class="c-mot">Motivo / categoría correcta</th>
       </tr>
@@ -336,7 +347,11 @@ function currentList(){
   const q = $("q").value.trim().toLowerCase();
   const cat = $("fCat").value;
   const lang = $("fLang").value;
+  const alert = $("fAlert").value;
+  const dec = $("fDecision").value;
   return DATA.filter(d => {
+    if(alert && d.alert_name !== alert) return false;
+    if(dec && d.decision !== dec) return false;
     if(cat && d.category !== cat) return false;
     if(lang && (d.language || "") !== lang) return false;
     if(q && !(d.title.toLowerCase().includes(q) || (d.description||"").toLowerCase().includes(q))) return false;
@@ -395,13 +410,16 @@ function buildRow(d, n){
   tdAd.append(a, meta, desc);
 
   const tdCat = document.createElement("td"); tdCat.className = "c-cat";
+  const dec = document.createElement("span"); dec.className = "badge " + (d.decision === "keep" ? "keep" : "reject");
+  dec.textContent = d.decision || "—";
   const bd = document.createElement("span"); bd.className = "badge " + catClass(d.category);
-  bd.textContent = d.category || "—";
+  bd.textContent = (d.category || "—") + (d.decision === "reject" ? " · motivo" : "");
+  if(d.decision === "reject") bd.title = "Motivo de rechazo del bot";
   const lg = document.createElement("span"); lg.className = "lang " + langClass(d.language);
   lg.textContent = d.language || "?";
   const cat = document.createElement("span"); cat.className = "deco";
   cat.textContent = d.category_id ? ("cat. Wallapop #" + d.category_id) : "cat. Wallapop: ?";
-  tdCat.append(bd, document.createElement("br"), lg, cat);
+  tdCat.append(dec, document.createTextNode(" "), bd, document.createElement("br"), lg, cat);
 
   const tdOk = document.createElement("td"); tdOk.className = "c-ok";
   const labO = document.createElement("label"); labO.className = "chk";
@@ -411,7 +429,7 @@ function buildRow(d, n){
 
   const tdMot = document.createElement("td"); tdMot.className = "c-mot";
   const ta = document.createElement("textarea"); ta.className = "mot-in"; ta.rows = 1;
-  ta.placeholder = "p. ej. es expansión, no base · no es un juego · idioma mal detectado";
+  ta.placeholder = "p. ej. no es este juego (Lost Cities) · rechazo incorrecto, sí es válido · es expansión, no base · idioma mal detectado";
   ta.value = e.m; tdMot.appendChild(ta);
 
   tr.append(tdIdx, tdRev, tdAd, tdCat, tdOk, tdMot);
@@ -536,8 +554,18 @@ function importText(text){
   alert("Importadas " + applyImported(arr) + " filas.");
 }
 
+function populateFilters(){
+  const alerts = [...new Set(DATA.map(d => d.alert_name).filter(Boolean))].sort();
+  const cats = [...new Set(DATA.map(d => d.category).filter(Boolean))].sort();
+  const fa = $("fAlert"), fc = $("fCat");
+  for(const a of alerts){ const o = document.createElement("option"); o.value = a; o.textContent = a; fa.appendChild(o); }
+  for(const c of cats){ const o = document.createElement("option"); o.value = c; o.textContent = c; fc.appendChild(o); }
+}
+
 let qT = null;
 $("q").addEventListener("input", () => { clearTimeout(qT); qT = setTimeout(render, 150); });
+$("fAlert").addEventListener("change", render);
+$("fDecision").addEventListener("change", render);
 $("fCat").addEventListener("change", render);
 $("fLang").addEventListener("change", render);
 $("fStatus").addEventListener("click", ev => {
@@ -563,6 +591,7 @@ $("bMarkVisible").addEventListener("click", () => {
   render(); updateStats(); scheduleSave();
 });
 
+populateFilters();
 (async () => { await loadSaved(); render(); updateStats(); })();
 </script>
 </body>
