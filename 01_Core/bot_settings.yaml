@@ -68,6 +68,29 @@ search:
 
 
 # ============================================================
+#  RELEVANCIA — gate NLI para keywords ambiguas (Cities, Risk...)
+# ============================================================
+# Keywords de UNA palabra y comun ("cities") cuelan otros juegos que la contienen
+# (Lost Cities, Underwater Cities, Cities of Sigmar...). Para esas keywords un gate
+# decide si el anuncio es EXACTAMENTE el juego buscado o uno distinto: NLI zero-shot
+# (Hugging Face) si hay servicio, fallback determinista (lista de confusores) si no.
+# Solo se dispara en alertas con keyword riesgosa (definidas en classifier.py:
+# _RISKY_KEYWORDS), asi que no toca el resto. Reversible: enabled=false.
+#
+# Token HF: variable de entorno HF_API_TOKEN (Secret en CI). Sin token -> la API
+# publica suele ir con cuota baja; si falla, se usa SOLO el fallback determinista.
+# Cada valor admite override por variable de entorno (RELEVANCE_ENABLED, NLI_MODEL,
+# NLI_MARGIN), que SIEMPRE tiene prioridad sobre esto.
+relevance:
+  enabled: true
+  model: joeddav/xlm-roberta-large-xnli   # multilingue (mejor en español)
+  margin: 0.15                            # margen minimo de score para decidir NLI
+  # overrides opcionales de confusores por keyword (reemplaza la lista por defecto):
+  # confusers:
+  #   cities: [lost cities, underwater cities, between two cities, cities of sigmar]
+
+
+# ============================================================
 #  LLM — cascada de clasificacion (comun a TODOS los usuarios)
 # ============================================================
 # Se prueban en orden y gana el PRIMERO que responde; 'rules' es el terminal

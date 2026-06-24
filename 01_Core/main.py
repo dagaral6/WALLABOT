@@ -248,6 +248,14 @@ def evaluate(item, alert, cfg, cat_cache=None):
 
     # ----- RAMA 1: el título coincide -> el juego es correcto -----
     if classifier.title_matches(target, title):
+        # Gate de relevancia (solo keywords ambiguas tipo "cities"): el título
+        # coincide pero podría ser OTRO juego que contiene la palabra (Lost
+        # Cities, Underwater Cities...). NLI + fallback determinista; selectivo.
+        risky = classifier.detect_risky_keywords(alert)
+        if risky and classifier.relevance_enabled():
+            if classifier.nli_relevance_gate(title, desc, risky[0]) == "not_relevant":
+                return "reject", "no_title_match"
+
         if cat_cache is not None and item.get("id") in cat_cache:
             category = cat_cache[item["id"]]      # precalculado por lotes
         else:

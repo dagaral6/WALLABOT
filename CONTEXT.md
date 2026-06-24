@@ -96,16 +96,16 @@ Wallabot (scraper + clasificador de juegos de mesa en Wallapop) ha recibido mejo
 
 **Impacto**: ~9 aciertos. Coste: 0 llamadas LLM. Riesgo: bajo.
 
-### 3. Relevancia (Cities) — NLI para keywords ambiguas
+### 3. Relevancia (Cities) — NLI para keywords ambiguas  ✅ IMPLEMENTADO (jun 2026)
 **Problema**: 30 errores (66% de la alerta "Cities"). "Cities" entra en Lost Cities, Underwater Cities, Between Two Cities, Cities of Sigmar, etc.
 
-**Solución**: gate NLI de relevancia + detección automática de keywords riesgosas.
-- Gate determinista detecta keywords "riesgosas" (cortas, palabra común, alto false-match-rate histórico).
-- Para esas keywords, pasa NLI: "¿este anuncio es exactamente el juego X, o es otro juego que contiene la palabra Y?"
-- Input: título + descripción. Output: relevancia (sí/no) o juego real.
-- Fallback: si NLI duda, aplica lista de exclusión por alerta (p. ej. "Lost Cities", "Underwater Cities" para alerta "Cities").
+**Solución implementada**: gate de relevancia híbrido (NLI zero-shot + fallback determinista), selectivo y reversible.
+- `classifier.py`: `_RISKY_KEYWORDS` (keyword → nombre canónico + confusores), `is_risky_keyword()`, `detect_risky_keywords(alert)`, `nli_relevance_gate(title, desc, keyword)`, `_match_exclusion()`. El gate consulta el NLI zero-shot de Hugging Face (modelo multilingüe `joeddav/xlm-roberta-large-xnli`, token `HF_API_TOKEN`) decidiendo por **margen** de score; si el NLI no responde (503/429/timeout/sin token) o el margen es insuficiente, cae al **fallback determinista** (lista de confusores). Caché en memoria por (keyword, título normalizado).
+- `main.py:evaluate()`: en la RAMA 1 (título coincide), si la alerta tiene keyword riesgosa y `relevance.enabled`, llama al gate; `not_relevant` → `reject/no_title_match`. No cambia la firma de `evaluate()`. `_hard_excluded` (alert `exclude`) sigue corriendo antes como red adicional.
+- `bot_settings.yaml`: sección `relevance` (enabled, model, margin, overrides de confusores). Aplicada por `configure_from_settings()`.
+- Test: `03_Diagnostico/test_nli_relevance.py` (standalone). Validado: gate INERTE sobre las 484 filas de `cases.jsonl` (0 rechazos nuevos en las 6 alertas reales) + sintéticos de Cities (Lost/Underwater/Between Two/Sigmar → not_relevant; Cities Devir → relevant).
 
-**Impacto**: ~30 aciertos. Coste: ~1-2 llamadas LLM por alerta (batch de 25-50 anuncios). Riesgo: bajo (NLI es tarea clara; fallback determinista).
+**Impacto**: cubre los ~30 errores de "Cities". Coste: NLI solo en keywords riesgosas (hoy "Cities") y solo sobre títulos que ya matchearon, con caché; 0 llamadas si no hay token (modo determinista). Riesgo: bajo. "Risk" queda fuera por defecto (variantes legítimas: Risk Legacy, Star Wars...).
 
 ---
 
@@ -122,7 +122,7 @@ classifier.py (puertas en cascada)
     ├─ gate: looks_foreign_language (idioma)
     ├─ gate: [PENDING] componentes (regla)
     ├─ gate: [PENDING] expansión (regla)
-    ├─ gate: [PENDING] relevancia/Cities (NLI + exclusión)
+    ├─ gate: relevancia/Cities (NLI HF zero-shot + exclusión)  [hecho]
     ├─ classify: base/expansion/lote (LLM o reglas)
     └─ detect_language: es/ca/en/otro
          ↓
@@ -147,7 +147,7 @@ notifier.py (envía emails)
 ## Próximos pasos
 
 1. **Inmediato**: implementar componentes + expansión (reglas deterministas, sin NLI).
-2. **Fase 2**: implementar relevancia/Cities con NLI (gate de keywords riesgosas + fallback determinista).
+2. **Fase 2** ✅ hecho: relevancia/Cities con NLI (gate de keywords riesgosas + fallback determinista). Ver "Estrategias" §3.
 3. **Fase 3 (largo plazo)**: fine-tuning de NLI local sobre los 378 keep para reemplazar cascada LLM cloud (reduce coste y latencia).
 
 ---

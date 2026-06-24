@@ -184,6 +184,155 @@ _PLAYABLE_OK_RE = re.compile(
     r"\b(?:" + "|".join(re.escape(w) for w in _PLAYABLE_OK) + r")\b")
 
 
+# ---------------------------------------------------------------------------
+#  RELEVANCIA — gate NLI para keywords ambiguas (Cities, Risk, ...)
+# ---------------------------------------------------------------------------
+# Problema: una keyword de UNA sola palabra y COMÚN ("cities", "risk") cuela
+# otros juegos que contienen esa palabra: "Lost Cities", "Underwater Cities",
+# "Cities of Sigmar"... title_matches() no puede distinguirlos (para un término
+# de una palabra, cualquier coincidencia vale). Aquí, SOLO para esas keywords
+# riesgosas, un gate de relevancia NLI decide si el anuncio es EXACTAMENTE el
+# juego buscado o uno distinto.
+#
+# Híbrido y conservador: NLI zero-shot (Hugging Face) cuando hay servicio;
+# fallback determinista (lista de confusores) cuando el NLI no responde o duda.
+# Ante la duda, deja pasar (no perder anuncios buenos). Reversible: relevance.enabled.
+#
+# El nombre canónico ('game') y los confusores viven aquí, así NO hay que cambiar
+# el esquema de las alertas (alert["keywords"] sigue siendo un string).
+_RISKY_KEYWORDS = {
+    "cities": {
+        "game": "Cities, el juego de mesa de negociación de Devir",
+        "confusers": ["lost cities", "underwater cities",
+                      "between two cities", "cities of sigmar",
+                      "cities skylines"],
+    },
+    # "risk" se deja fuera por defecto: tiene variantes legítimas (Risk Legacy,
+    # Risk: Star Wars...) y la palabra inglesa "risk" aparece en descripciones.
+    # Añadir aquí cuando se afine su lista de confusores.
+}
+
+# Configurable por settings (relevance.*) o entorno; por defecto activo.
+_RELEVANCE_ENABLED = os.getenv("RELEVANCE_ENABLED", "1") not in ("0", "false", "False")
+_NLI_MODEL = os.getenv("NLI_MODEL", "joeddav/xlm-roberta-large-xnli")
+try:
+    _NLI_MARGIN = float(os.getenv("NLI_MARGIN", "0.15"))
+except ValueError:
+    _NLI_MARGIN = 0.15
+_NLI_HYP_TEMPLATE = "Este anuncio trata de {}."
+_NLI_API_URL = "https://api-inference.huggingface.co/models/{model}"
+
+# Caché de relevancia en memoria: (keyword, titulo_normalizado) -> "relevant"|"not_relevant".
+# Evita re-llamar al NLI por el mismo título dentro de una pasada (Actions es stateless
+# entre runs, así que basta con caché de proceso).
+_RELEVANCE_CACHE: dict[tuple[str, str], str] = {}
+
+
+def relevance_enabled():
+    """True si el gate de relevancia está activo (relevance.enabled / RELEVANCE_ENABLED)."""
+    return _RELEVANCE_ENABLED
+
+
+def is_risky_keyword(kw):
+    """True si `kw` (una palabra) es una keyword ambigua conocida."""
+    return _normalize(str(kw or "").strip()) in _RISKY_KEYWORDS
+
+
+def detect_risky_keywords(alert):
+    """Devuelve las keywords riesgosas presentes en alert["keywords"] (string).
+    Lista vacía si la alerta no tiene ninguna (caso normal)."""
+    target = (alert or {}).get("keywords") or ""
+    words = re.findall(r"\w+", _normalize(target))
+    seen, out = set(), []
+    for w in words:
+        if w in _RISKY_KEYWORDS and w not in seen:
+            seen.add(w)
+            out.append(w)
+    return out
+
+
+def _match_exclusion(title, confusers):
+    """True si el título contiene algún confusor (substring sobre texto normalizado)."""
+    norm = _normalize(title)
+    return any(c and _normalize(c) in norm for c in (confusers or []))
+
+
+def _nli_hf_relevance(text, game_label, other_label, timeout=20):
+    """Llama a la HF Inference API (zero-shot) con dos hipótesis: el juego buscado
+    vs otro juego. Devuelve (score_game, score_other) o lanza RuntimeError si el
+    servicio no está disponible (sin token, 503 cold-start, 429 cuota, timeout, red).
+
+    El token se lee de HF_API_TOKEN (NUNCA hardcodeado). Sin token la API pública
+    suele funcionar pero con cuota baja; si falla, el llamador cae al determinista.
+    """
+    token = os.getenv("HF_API_TOKEN")
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    url = _NLI_API_URL.format(model=_NLI_MODEL)
+    payload = {
+        "inputs": text,
+        "parameters": {
+            "candidate_labels": [game_label, other_label],
+            "hypothesis_template": _NLI_HYP_TEMPLATE,
+            "multi_label": False,
+        },
+    }
+    try:
+        r = requests.post(url, headers=headers, json=payload, timeout=timeout)
+    except requests.RequestException as e:
+        raise RuntimeError(f"NLI red/timeout: {e}")
+    if r.status_code in (503, 429):
+        raise RuntimeError(f"NLI no disponible (HTTP {r.status_code})")
+    if r.status_code != 200:
+        raise RuntimeError(f"NLI HTTP {r.status_code}: {r.text[:120]}")
+    data = r.json()
+    if not isinstance(data, dict) or "labels" not in data or "scores" not in data:
+        raise RuntimeError(f"NLI respuesta inesperada: {str(data)[:120]}")
+    scores = dict(zip(data["labels"], data["scores"]))
+    return scores.get(game_label, 0.0), scores.get(other_label, 0.0)
+
+
+def nli_relevance_gate(title, desc, keyword):
+    """¿El anuncio es EXACTAMENTE el juego de `keyword`, o es otro que contiene esa
+    palabra? Devuelve "relevant" | "not_relevant".
+
+    1) Caché por (keyword, título normalizado).
+    2) NLI zero-shot (HF) si hay servicio: decide por MARGEN de score (_NLI_MARGIN).
+    3) Fallback determinista (sin servicio o margen insuficiente): si el título
+       contiene un confusor conocido -> "not_relevant"; si no -> "relevant"
+       (conservador: ante la duda, dejar pasar).
+    """
+    kw = _normalize(str(keyword or "").strip())
+    spec = _RISKY_KEYWORDS.get(kw)
+    if not spec:
+        return "relevant"          # no es riesgosa: no aplica
+
+    cache_key = (kw, _normalize(title or ""))
+    cached = _RELEVANCE_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    confusers = spec.get("confusers") or []
+    decision = None
+    try:
+        game_label = spec.get("game") or kw
+        other_label = f"otro juego diferente que contiene la palabra «{kw}»"
+        text = f"{title or ''}. {desc or ''}".strip()
+        s_game, s_other = _nli_hf_relevance(text, game_label, other_label)
+        if s_other - s_game >= _NLI_MARGIN:
+            decision = "not_relevant"
+        elif s_game - s_other >= _NLI_MARGIN:
+            decision = "relevant"
+        # margen insuficiente -> indeterminado: cae al fallback determinista
+    except RuntimeError as e:
+        log.info("NLI relevancia no disponible (%s); fallback determinista", e)
+
+    if decision is None:
+        decision = "not_relevant" if _match_exclusion(title, confusers) else "relevant"
+
+    _RELEVANCE_CACHE[cache_key] = decision
+    return decision
+
+
 # --- Idioma CONCRETO del anuncio: es / ca / en / otro -----------------------
 # Para el dataset de reentrenamiento queremos el idioma REAL del anuncio (no
 # solo "foreign sí/no"). Estrategia CONSISTENTE con looks_foreign_language():
@@ -547,11 +696,41 @@ if "LLM_PROVIDER" in os.environ and "LLM_CASCADE" not in os.environ:
 LLM_PROVIDER = LLM_CASCADE[0] if LLM_CASCADE else "rules"
 
 
+def configure_relevance_from_settings(settings):
+    """Aplica la seccion 'relevance' de bot_settings.yaml (gate NLI de relevancia
+    para keywords ambiguas). Entorno > yaml > default. Idempotente."""
+    global _RELEVANCE_ENABLED, _NLI_MODEL, _NLI_MARGIN
+    rel = (settings or {}).get("relevance") or {}
+
+    if "RELEVANCE_ENABLED" not in os.environ and rel.get("enabled") is not None:
+        _RELEVANCE_ENABLED = bool(rel.get("enabled"))
+
+    if "NLI_MODEL" not in os.environ and rel.get("model"):
+        _NLI_MODEL = str(rel["model"]).strip()
+
+    if "NLI_MARGIN" not in os.environ and rel.get("margin") is not None:
+        try:
+            _NLI_MARGIN = float(rel["margin"])
+        except (TypeError, ValueError):
+            log.warning("relevance.margin invalido: %s", rel.get("margin"))
+
+    # Overrides opcionales de confusores por keyword (no borra los por defecto;
+    # reemplaza la lista de las keywords indicadas).
+    for kw, conf in (rel.get("confusers") or {}).items():
+        k = _normalize(str(kw).strip())
+        if k in _RISKY_KEYWORDS and isinstance(conf, list):
+            _RISKY_KEYWORDS[k]["confusers"] = [str(c) for c in conf]
+
+
 def configure_from_settings(settings):
     """Aplica la seccion 'llm' de bot_settings.yaml (cascada, modelos, claves,
     cooldown). Una variable de entorno del mismo concepto SIEMPRE manda sobre
-    esto (util para GitHub Secrets). Idempotente; la llama main.py al arrancar."""
+    esto (util para GitHub Secrets). Idempotente; la llama main.py al arrancar.
+
+    Tambien aplica la seccion 'relevance' (gate NLI), por comodidad: main.py solo
+    llama a configure_from_settings()."""
     global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN, _BATCH_SIZE
+    configure_relevance_from_settings(settings)
     llm = (settings or {}).get("llm") or {}
 
     if "LLM_CASCADE" not in os.environ and "LLM_PROVIDER" not in os.environ:
