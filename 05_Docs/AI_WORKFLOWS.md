@@ -48,6 +48,9 @@ como alternativa a la cascada LLM actual, SIN tocar código de producción:
 
 1. **Fase 0:** `py 03_Diagnostico/build_nli_dataset.py` — extrae ground truth de `alerts.db`
    (anuncios ya clasificados) a `03_Diagnostico/nli_dataset/cases.jsonl`. Puerta: ≥50 casos/categoría.
+   Cada caso incluye `description` (clave para el NLI): los `keep` la tienen desde siempre; los
+   `reject` solo a partir de jun 2026 (antes se guardaban con `description` NULL), así que los
+   `reject` históricos saldrán sin descripción hasta que el bot los vuelva a ver y regrabe.
 2. **Fase 1:** `py 03_Diagnostico/test_nli_poc.py` — viabilidad sobre 6 anuncios sintéticos.
    Requiere `HF_API_TOKEN` (gratis, Hugging Face Inference API). Puerta: >70% accuracy.
 3. **Fase 2:** `py 03_Diagnostico/compare_nli_vs_current.py` — compara NLI masivo vs el sistema
