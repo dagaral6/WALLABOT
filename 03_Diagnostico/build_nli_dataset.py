@@ -63,6 +63,7 @@ def main():
             cases.append({
                 "alert_name": alert_name,
                 "title": row.get("title"),
+                "description": row.get("description"),
                 "category": row.get("category"),
                 "decision": row.get("decision"),
             })
@@ -70,6 +71,7 @@ def main():
             cases.append({
                 "alert_name": alert_name,
                 "title": row.get("title"),
+                "description": row.get("description"),
                 "category": row.get("category"),
                 "decision": row.get("decision"),
             })
