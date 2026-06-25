@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS seen_items (
     url        TEXT,
     category    TEXT,
     decision    TEXT,                      -- 'keep' | 'reject'
-    description TEXT,                       -- texto del anuncio; solo en 'keep'
+    description TEXT,                       -- texto del anuncio (keep y reject)
     language    TEXT,                       -- idioma detectado: es | ca | en | otro
     category_id TEXT,                       -- categoría NATIVA Wallapop (no la del bot)
     first_seen  TEXT DEFAULT (datetime('now')),
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS seen_items (
 # Columnas que deben existir (para migrar bases antiguas sin perder datos).
 # deleted_reason/deleted_at marcan el HISTORICO de alertas eliminadas: las filas
 # no se borran, solo se anotan (base para una futura capa de consulta).
-# description/language: texto del anuncio (solo 'keep') e idioma detectado
+# description/language: texto del anuncio (en keep y reject) e idioma detectado
 # (es/ca/en/otro), para el dataset de reentrenamiento del clasificador/NLI.
 # category_id: categoría NATIVA de Wallapop (la del vendedor), para filtrar/ver
 # lo que no es juego de mesa (libros, CDs, videojuegos...).
@@ -144,9 +144,11 @@ def add_items(alert_name, decided_items, db_path=None):
     decided_items: lista de tuplas (item_dict, category, decision).
 
     Además de los campos de siempre guarda:
-      - description: el texto del anuncio (item_dict['description']), SOLO cuando
-        decision == 'keep'. En 'reject' queda NULL para no inflar la BD (que se
-        versiona en git). Cadena vacía se normaliza a NULL.
+      - description: el texto del anuncio (item_dict['description']) en TODAS las
+        filas, sea 'keep' o 'reject'. Antes solo se guardaba en 'keep'; ahora
+        también en 'reject' para que el dataset de reentrenamiento tenga contexto
+        de los anuncios descartados (components/expansion/lote/not_game), que es
+        donde más se necesita. Cadena vacía se normaliza a NULL.
       - language: idioma detectado (item_dict['language']: es/ca/en/otro) en
         TODAS las filas. Lo calcula main.evaluate()/process_alert vía
         classifier.detect_language antes de llamar aquí.
@@ -168,7 +170,7 @@ def add_items(alert_name, decided_items, db_path=None):
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             [(alert_name, it["id"], it["title"], it["price"], it["url"],
               cat, dec,
-              ((it.get("description") or None) if dec == "keep" else None),
+              (it.get("description") or None),
               it.get("language"), _cat(it))
              for (it, cat, dec) in decided_items])
 
