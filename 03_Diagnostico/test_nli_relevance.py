@@ -34,6 +34,10 @@ sys.path.insert(0, CORE)
 
 import classifier  # noqa: E402
 
+# Guardamos la _nli_hf_relevance REAL antes de monkeypatchearla, para restaurarla
+# antes del smoke opcional (que sí quiere llamar al servicio de verdad).
+_REAL_NLI = classifier._nli_hf_relevance
+
 CASES_JSONL = os.path.join(BASE, "nli_dataset", "cases.jsonl")
 DARIO_YAML = os.path.join(CORE, "configs", "dario.yaml")
 
@@ -70,6 +74,27 @@ check("detect_risky_keywords(castillos burgundy borgoña) -> []",
 check("detect_risky_keywords(catan) -> []",
       classifier.detect_risky_keywords({"keywords": "catan"}) == [])
 
+# Keywords MULTI-PALABRA ('rising sun'): presente si la alerta busca esas palabras.
+check("is_risky_keyword('rising sun')",
+      classifier.is_risky_keyword("rising sun") is True)
+check("is_risky_keyword('Rising Sun') (mayus)",
+      classifier.is_risky_keyword("Rising Sun") is True)
+check("detect_risky_keywords(rising sun)",
+      classifier.detect_risky_keywords({"keywords": "rising sun"}) == ["rising sun"])
+check("detect_risky_keywords(rising sun cmon) -> [rising sun]",
+      classifier.detect_risky_keywords(
+          {"keywords": "rising sun cmon"}) == ["rising sun"])
+check("detect_risky_keywords(sun) (solo una palabra de la frase) -> []",
+      classifier.detect_risky_keywords({"keywords": "sun"}) == [])
+
+# _phrase_in_order: orden CONTIGUO de la frase en el título.
+check("_phrase_in_order('Rising Sun Monster Pack', 'rising sun')",
+      classifier._phrase_in_order("Rising Sun Monster Pack", "rising sun") is True)
+check("_phrase_in_order('Setting Sun Rising', 'rising sun') -> False",
+      classifier._phrase_in_order("Setting Sun Rising", "rising sun") is False)
+check("_phrase_in_order('cities of doom', 'cities') (una palabra) -> True",
+      classifier._phrase_in_order("cities of doom", "cities") is True)
+
 
 # --- 2) Fallback deterministico (NLI no disponible) ------------------------
 _force_nli_unavailable()
@@ -99,6 +124,72 @@ for title, desc, kw, expected in SINTETICOS:
 classifier._RELEVANCE_CACHE.clear()
 check("gate(Catan base, 'catan') -> relevant",
       classifier.nli_relevance_gate("Catan base completo", "", "catan") == "relevant")
+
+
+# --- 2b) Fallback determinista: regla de ORDEN para frases multi-palabra ----
+# (NLI sigue forzado a no disponible desde _force_nli_unavailable()). Sin
+# confusores a mano para "rising sun": decide la regla de orden contiguo.
+ORDEN = [
+    # frase en orden contiguo -> relevante por relevancia (la categoria, aparte)
+    ("Rising Sun Monster Pack", "miniaturas del juego", "rising sun", "relevant"),
+    ("Rising Sun CMON completo", "juego base", "rising sun", "relevant"),
+    # palabras sueltas / orden invertido -> otro juego
+    ("Setting Sun Rising", "wargame", "rising sun", "not_relevant"),
+    ("Paper Wars #80 - Setting Sun Rising", "revista", "rising sun", "not_relevant"),
+]
+for title, desc, kw, expected in ORDEN:
+    classifier._RELEVANCE_CACHE.clear()
+    got = classifier.nli_relevance_gate(title, desc, kw)
+    check(f"orden gate({title!r}) -> {expected}", got == expected, f"obtenido={got}")
+
+
+# --- 2c) B2.0: el NLI de relevancia puntua SOLO el titulo (desc ignorada) ----
+_captured = {}
+def _capture_text(text, game_label, other_label, timeout=20):
+    _captured["text"] = text
+    return (0.9, 0.1)            # score_game > score_other -> relevant
+classifier._nli_hf_relevance = _capture_text
+classifier._RELEVANCE_CACHE.clear()
+classifier.nli_relevance_gate("Cities Devir", "esta desc menciona lost cities", "cities")
+check("B2.0: el NLI puntua solo el titulo (sin descripcion)",
+      _captured.get("text") == "Cities Devir", f"text={_captured.get('text')!r}")
+
+
+# --- 2d) NLI vivo (mockeado): caza confusores SIN diccionario a mano ---------
+# Los 4 titulos reales de "cities" de la revision NO estan en la lista de
+# confusores y el caso de dardos "rising sun" si esta en orden contiguo: el
+# fallback determinista los dejaria pasar (ante la duda). Con el NLI vivo
+# disponible (aqui mockeado para que diga "otro juego"), se marcan not_relevant.
+def _nli_says_other(text, game_label, other_label, timeout=20):
+    return (0.1, 0.9)           # score_other > score_game -> not_relevant
+classifier._nli_hf_relevance = _nli_says_other
+
+NLI_OTHER = [
+    # cities (revision jun 2026): confusores que NO estan en la lista a mano
+    ("Dicemaster Cities of Doom", "cities"),
+    ("Ticket to Ride: Large Cities", "cities"),
+    ("7 Wonders + Expansiones Cities", "cities"),
+    ("Galen y Doralia cities sigmar", "cities"),
+    # rising sun: dardos con la frase en orden contiguo (lo resuelve el NLI vivo)
+    ("Dardos Target Rising Sun G8", "rising sun"),
+]
+for title, kw in NLI_OTHER:
+    classifier._RELEVANCE_CACHE.clear()
+    got = classifier.nli_relevance_gate(title, "", kw)
+    check(f"NLI vivo gate({title!r}) -> not_relevant", got == "not_relevant",
+          f"obtenido={got}")
+
+# Positivo con NLI vivo: el juego buscado de verdad -> relevant.
+def _nli_says_game(text, game_label, other_label, timeout=20):
+    return (0.9, 0.1)
+classifier._nli_hf_relevance = _nli_says_game
+classifier._RELEVANCE_CACHE.clear()
+check("NLI vivo gate('Rising Sun CMON') -> relevant",
+      classifier.nli_relevance_gate("Rising Sun CMON", "", "rising sun") == "relevant")
+
+# Restauramos: el resto del fichero (regresion y smoke) usa la NLI real / fallback.
+classifier._nli_hf_relevance = _REAL_NLI
+classifier._RELEVANCE_CACHE.clear()
 
 
 # --- 3) Regresion contra cases.jsonl: gate INERTE en alertas reales --------

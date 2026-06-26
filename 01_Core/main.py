@@ -40,6 +40,7 @@ import scraper
 import database
 import notifier
 import classifier
+import bgg
 import config_inbox
 
 logging.basicConfig(
@@ -253,7 +254,10 @@ def evaluate(item, alert, cfg, cat_cache=None):
         # Cities, Underwater Cities...). NLI + fallback determinista; selectivo.
         risky = classifier.detect_risky_keywords(alert)
         if risky and classifier.relevance_enabled():
-            if classifier.nli_relevance_gate(title, desc, risky[0]) == "not_relevant":
+            # Puede haber varias (p.ej. una palabra suelta + una frase): si
+            # CUALQUIERA dice "no es el juego buscado", se descarta.
+            if any(classifier.nli_relevance_gate(title, desc, kw) == "not_relevant"
+                   for kw in risky):
                 return "reject", "no_title_match"
 
         if cat_cache is not None and item.get("id") in cat_cache:
@@ -288,6 +292,30 @@ def evaluate(item, alert, cfg, cat_cache=None):
     if lote["is_lote"] and lote["includes_target"]:
         return "keep", "lote"   # precio ignorado en lotes
     return "reject", "no_title_match"
+
+
+def _refine_categories_with_bgg(items, cats):
+    """REFUERZO opcional con BGG (bgg.enabled): si las REGLAS dijeron 'base' pero
+    BGG clasifica el título como expansión, lo corrige a 'expansion'. BGG ayuda
+    confirmando, NO negando: no degrada a not_game ni descarta por no reconocer un
+    título (ante la duda, dejar pasar). Solo mueve 'base'->'expansion'; el resto
+    de categorías (components/lote/not_game/expansion) no se tocan.
+
+    Devuelve una lista de categorías ALINEADA con `cats`. Con BGG desactivado
+    (por defecto) devuelve `cats` sin cambios -> comportamiento idéntico al actual.
+    """
+    if not bgg.bgg_enabled():
+        return cats
+    out = list(cats)
+    for i, (it, cat) in enumerate(zip(items, cats)):
+        if cat != "base":
+            continue
+        info = bgg.lookup(it.get("title", ""))
+        if info and info.get("kind") == "expansion":
+            out[i] = "expansion"
+            log.info("[BGG] '%s' reclasificado base->expansion (bgg id %s)",
+                     it.get("title", ""), info.get("bgg_id"))
+    return out
 
 
 def process_alert(user_id, config, alert, notify_enabled=True):
@@ -345,6 +373,7 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     cats = classifier.classify_categories_batch(
         [(it.get("title", ""), it.get("description", "")) for it in match_items],
         use_llm, model)
+    cats = _refine_categories_with_bgg(match_items, cats)   # refuerzo BGG opcional
     cat_cache = {it["id"]: c for it, c in zip(match_items, cats)}
 
     decided, new_kept = [], []
@@ -568,6 +597,7 @@ def main():
     # las variables de entorno (Secrets en CI) siguen teniendo prioridad.
     _settings = config_inbox.load_settings()
     classifier.configure_from_settings(_settings)
+    bgg.configure_from_settings(_settings)   # refuerzo BGG (desactivado por defecto)
     configure_search(_settings)   # filtro de categoría nativa (search.category_ids)
     configs = load_all_configs()
 

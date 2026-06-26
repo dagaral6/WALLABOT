@@ -70,12 +70,14 @@ search:
 # ============================================================
 #  RELEVANCIA — gate NLI para keywords ambiguas (Cities, Risk...)
 # ============================================================
-# Keywords de UNA palabra y comun ("cities") cuelan otros juegos que la contienen
-# (Lost Cities, Underwater Cities, Cities of Sigmar...). Para esas keywords un gate
-# decide si el anuncio es EXACTAMENTE el juego buscado o uno distinto: NLI zero-shot
-# (Hugging Face) si hay servicio, fallback determinista (lista de confusores) si no.
-# Solo se dispara en alertas con keyword riesgosa (definidas en classifier.py:
-# _RISKY_KEYWORDS), asi que no toca el resto. Reversible: enabled=false.
+# Keywords ambiguas cuelan otros juegos que las contienen: de UNA palabra
+# ("cities" -> Lost Cities, Underwater Cities, Cities of Sigmar...) o frases
+# multi-palabra ("rising sun" -> "Setting Sun Rising", dardos "Rising Sun"...).
+# Para esas keywords un gate decide si el anuncio es EXACTAMENTE el juego buscado
+# o uno distinto: NLI zero-shot (Hugging Face) sobre el TITULO si hay servicio;
+# fallback determinista si no (confusores conocidos + regla de ORDEN contiguo para
+# las frases). Solo se dispara en alertas con keyword riesgosa (definidas en
+# classifier.py: _RISKY_KEYWORDS), asi que no toca el resto. Reversible: enabled=false.
 #
 # Token HF: variable de entorno HF_API_TOKEN (Secret en CI). Sin token -> la API
 # publica suele ir con cuota baja; si falla, se usa SOLO el fallback determinista.
@@ -88,6 +90,23 @@ relevance:
   # overrides opcionales de confusores por keyword (reemplaza la lista por defecto):
   # confusers:
   #   cities: [lost cities, underwater cities, between two cities, cities of sigmar]
+
+
+# ============================================================
+#  BGG — refuerzo con BoardGameGeek (relevancia + base/expansion)
+# ============================================================
+# Usa la API XML de BoardGameGeek (XMLAPI2) como "diccionario que se mantiene
+# solo": dado un titulo, confirma si es un juego real y si BGG lo clasifica como
+# base (boardgame) o expansion (boardgameexpansion). REFUERZO, no autoridad: si
+# BGG no reconoce un titulo NO se descarta por eso (ante la duda, dejar pasar);
+# solo corrige 'base'->'expansion' cuando BGG dice expansion. Cachea resultados en
+# 01_Core/bgg_cache.json (versionado en git, como la BD). Degradacion elegante:
+# ante red/timeout/202/429/parseo, BGG se ignora y el bot sigue como hoy.
+# DESACTIVADO por defecto: actívalo a conciencia (enabled: true).
+# Override por entorno: BGG_ENABLED (y BGG_TIMEOUT/BGG_MAX_RETRIES/BGG_RETRY_WAIT/
+# BGG_CACHE_TTL_DAYS).
+bgg:
+  enabled: false
 
 
 # ============================================================

@@ -207,6 +207,15 @@ _RISKY_KEYWORDS = {
                       "between two cities", "cities of sigmar",
                       "cities skylines"],
     },
+    # Multi-palabra (frase): "rising sun" cuela otros productos que llevan esas
+    # dos palabras ("Setting Sun Rising", dardos "Rising Sun"...). A propósito SIN
+    # confusores a mano (el usuario rechaza mantener diccionarios): lo resuelven el
+    # NLI vivo (semántico, entiende el orden) y la regla de ORDEN del fallback
+    # determinista (ver nli_relevance_gate / _phrase_in_order).
+    "rising sun": {
+        "game": "Rising Sun, el juego de mesa de CMON",
+        "confusers": [],
+    },
     # "risk" se deja fuera por defecto: tiene variantes legítimas (Risk Legacy,
     # Risk: Star Wars...) y la palabra inglesa "risk" aparece en descripciones.
     # Añadir aquí cuando se afine su lista de confusores.
@@ -234,20 +243,28 @@ def relevance_enabled():
 
 
 def is_risky_keyword(kw):
-    """True si `kw` (una palabra) es una keyword ambigua conocida."""
+    """True si `kw` (una palabra o una frase, p.ej. 'rising sun') es una keyword
+    ambigua conocida."""
     return _normalize(str(kw or "").strip()) in _RISKY_KEYWORDS
 
 
 def detect_risky_keywords(alert):
-    """Devuelve las keywords riesgosas presentes en alert["keywords"] (string).
-    Lista vacía si la alerta no tiene ninguna (caso normal)."""
+    """Devuelve las keywords riesgosas presentes en alert["keywords"] (string),
+    tanto de una palabra ('cities') como frases multi-palabra ('rising sun').
+    Una frase se considera presente si la alerta busca TODAS sus palabras. Lista
+    vacía si la alerta no tiene ninguna (caso normal)."""
     target = (alert or {}).get("keywords") or ""
-    words = re.findall(r"\w+", _normalize(target))
-    seen, out = set(), []
-    for w in words:
-        if w in _RISKY_KEYWORDS and w not in seen:
-            seen.add(w)
-            out.append(w)
+    words = set(re.findall(r"\w+", _normalize(target)))
+    out, seen = [], set()
+    for key in _RISKY_KEYWORDS:                 # orden estable (dict insertion)
+        if key in seen:
+            continue
+        parts = key.split()
+        present = parts[0] in words if len(parts) == 1 \
+            else all(p in words for p in parts)
+        if present:
+            seen.add(key)
+            out.append(key)
     return out
 
 
@@ -255,6 +272,18 @@ def _match_exclusion(title, confusers):
     """True si el título contiene algún confusor (substring sobre texto normalizado)."""
     norm = _normalize(title)
     return any(c and _normalize(c) in norm for c in (confusers or []))
+
+
+def _phrase_in_order(title, phrase):
+    """True si las palabras de `phrase` aparecen CONTIGUAS y EN ORDEN en el título.
+    Una keyword de una sola palabra no tiene orden -> siempre True. Ejemplo:
+    'rising sun' está en orden en 'Rising Sun Monster Pack', pero NO en
+    'Setting Sun Rising' (palabras sueltas / orden invertido)."""
+    parts = (phrase or "").split()
+    if len(parts) < 2:
+        return True
+    pat = r"\b" + r"\s+".join(re.escape(p) for p in parts) + r"\b"
+    return bool(re.search(pat, _normalize(title)))
 
 
 def _nli_hf_relevance(text, game_label, other_label, timeout=20):
@@ -293,13 +322,24 @@ def _nli_hf_relevance(text, game_label, other_label, timeout=20):
 
 def nli_relevance_gate(title, desc, keyword):
     """¿El anuncio es EXACTAMENTE el juego de `keyword`, o es otro que contiene esa
-    palabra? Devuelve "relevant" | "not_relevant".
+    palabra/frase? Devuelve "relevant" | "not_relevant".
+
+    La RELEVANCIA la decide el TÍTULO: el nombre del juego está ahí. `desc` se
+    conserva en la firma por compatibilidad con el llamador (main.py) pero YA NO
+    se usa para relevancia (la descripción puede mencionar otros juegos y
+    contaminar la decisión; la descripción es señal de CATEGORÍA, no de relevancia).
 
     1) Caché por (keyword, título normalizado).
-    2) NLI zero-shot (HF) si hay servicio: decide por MARGEN de score (_NLI_MARGIN).
-    3) Fallback determinista (sin servicio o margen insuficiente): si el título
-       contiene un confusor conocido -> "not_relevant"; si no -> "relevant"
-       (conservador: ante la duda, dejar pasar).
+    2) NLI zero-shot (HF) sobre SOLO el título: decide por MARGEN (_NLI_MARGIN).
+       El NLI entiende el orden semánticamente (caza "Setting Sun Rising" o un
+       producto de dardos "Rising Sun" como "otro juego").
+    3) Fallback determinista (sin servicio o margen insuficiente), conservador
+       (ante la duda, dejar pasar):
+         - título con un confusor conocido -> "not_relevant".
+         - keyword multi-palabra cuyas palabras NO aparecen contiguas/en orden en
+           el título -> "not_relevant" (p.ej. "Setting Sun Rising" para «rising
+           sun»). Si aparecen en orden contiguo, es relevante por relevancia.
+         - en cualquier otro caso -> "relevant".
     """
     kw = _normalize(str(keyword or "").strip())
     spec = _RISKY_KEYWORDS.get(kw)
@@ -315,8 +355,8 @@ def nli_relevance_gate(title, desc, keyword):
     decision = None
     try:
         game_label = spec.get("game") or kw
-        other_label = f"otro juego diferente que contiene la palabra «{kw}»"
-        text = f"{title or ''}. {desc or ''}".strip()
+        other_label = f"otro juego diferente que contiene «{kw}»"
+        text = (title or "").strip()           # B2.0: relevancia SOLO por título
         s_game, s_other = _nli_hf_relevance(text, game_label, other_label)
         if s_other - s_game >= _NLI_MARGIN:
             decision = "not_relevant"
@@ -327,7 +367,12 @@ def nli_relevance_gate(title, desc, keyword):
         log.info("NLI relevancia no disponible (%s); fallback determinista", e)
 
     if decision is None:
-        decision = "not_relevant" if _match_exclusion(title, confusers) else "relevant"
+        if _match_exclusion(title, confusers):
+            decision = "not_relevant"
+        elif " " in kw and not _phrase_in_order(title, kw):
+            decision = "not_relevant"          # frase en otro orden -> otro juego
+        else:
+            decision = "relevant"
 
     _RELEVANCE_CACHE[cache_key] = decision
     return decision
