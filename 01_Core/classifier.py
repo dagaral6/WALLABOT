@@ -311,6 +311,12 @@ except ValueError:
     _NLI_MARGIN = 0.15
 _NLI_HYP_TEMPLATE = "Este anuncio trata de {}."
 _NLI_API_URL = "https://api-inference.huggingface.co/models/{model}"
+# Cortocircuito de proceso: tras el PRIMER fallo del NLI (red/DNS, 5xx, 429, token
+# inválido...) se deja de llamar a la red el resto de la ejecución y se registra
+# UNA sola vez. Evita reintentar (y spamear el log con un traceback por anuncio) un
+# servicio que ya sabemos caído. En CI/--once el proceso es efímero -> se reevalúa
+# en cada run.
+_NLI_UNAVAILABLE = False
 
 # Caché de relevancia en memoria: (keyword, titulo_normalizado) -> "relevant"|"not_relevant".
 # Evita re-llamar al NLI por el mismo título dentro de una pasada (Actions es stateless
@@ -394,12 +400,26 @@ def _phrase_in_order(title, phrase):
     return bool(re.search(pat, _normalize(title)))
 
 
+def _nli_mark_down(reason):
+    """Activa el cortocircuito del NLI para el resto de la ejecución y lo registra
+    UNA vez (warning). Siempre lanza RuntimeError; el llamador cae a su respaldo
+    (determinista en relevancia, reglas en categoría)."""
+    global _NLI_UNAVAILABLE
+    if not _NLI_UNAVAILABLE:
+        _NLI_UNAVAILABLE = True
+        log.warning("NLI no disponible (%s); se usa el respaldo (reglas/"
+                    "determinista) durante el resto de la ejecución", reason)
+    raise RuntimeError(reason)
+
+
 def _nli_hf_zeroshot(text, candidate_labels, timeout=20):
     """HF Inference API (zero-shot) genérico: devuelve {label: score} o lanza
     RuntimeError si el servicio no está disponible (sin token, 503 cold-start, 429
     cuota, timeout, red o formato inesperado). El token se lee de HF_API_TOKEN
-    (NUNCA hardcodeado). Sin token la API pública suele ir con cuota baja; si falla,
-    el llamador cae a su respaldo (determinista en relevancia, reglas en categoría)."""
+    (NUNCA hardcodeado). Tras el primer fallo, el cortocircuito (_NLI_UNAVAILABLE)
+    hace que las siguientes llamadas fallen de inmediato sin tocar la red."""
+    if _NLI_UNAVAILABLE:
+        raise RuntimeError("NLI no disponible (cortocircuito de esta ejecución)")
     token = os.getenv("HF_API_TOKEN")
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     url = _NLI_API_URL.format(model=_NLI_MODEL)
@@ -414,14 +434,14 @@ def _nli_hf_zeroshot(text, candidate_labels, timeout=20):
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
     except requests.RequestException as e:
-        raise RuntimeError(f"NLI red/timeout: {e}")
+        _nli_mark_down(f"red/timeout: {e}")
     if r.status_code in (503, 429):
-        raise RuntimeError(f"NLI no disponible (HTTP {r.status_code})")
+        _nli_mark_down(f"HTTP {r.status_code}")
     if r.status_code != 200:
-        raise RuntimeError(f"NLI HTTP {r.status_code}: {r.text[:120]}")
+        _nli_mark_down(f"HTTP {r.status_code}: {r.text[:120]}")
     data = r.json()
     if not isinstance(data, dict) or "labels" not in data or "scores" not in data:
-        raise RuntimeError(f"NLI respuesta inesperada: {str(data)[:120]}")
+        _nli_mark_down(f"respuesta inesperada: {str(data)[:120]}")
     return dict(zip(data["labels"], data["scores"]))
 
 
@@ -476,8 +496,8 @@ def nli_relevance_gate(title, desc, keyword):
         elif s_game - s_other >= _NLI_MARGIN:
             decision = "relevant"
         # margen insuficiente -> indeterminado: cae al fallback determinista
-    except RuntimeError as e:
-        log.info("NLI relevancia no disponible (%s); fallback determinista", e)
+    except RuntimeError:
+        pass            # NLI no disponible: el cortocircuito ya avisó; fallback determinista
 
     if decision is None:
         if _match_exclusion(title, confusers):
@@ -1437,8 +1457,8 @@ def _category_nli(title, description):
         ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
         if len(ranked) >= 2 and ranked[0][1] - ranked[1][1] >= _CATEGORY_NLI_MARGIN:
             decision = _CATEGORY_LABEL_TO_CAT.get(ranked[0][0])
-    except RuntimeError as e:
-        log.info("NLI categoría no disponible (%s); se mantienen las reglas", e)
+    except RuntimeError:
+        pass            # NLI no disponible: el cortocircuito ya avisó; se mantienen las reglas
     _CATEGORY_NLI_CACHE[key] = decision or ""
     return decision
 

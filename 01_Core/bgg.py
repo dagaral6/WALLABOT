@@ -65,6 +65,12 @@ _HEADERS = {"User-Agent": "wallabot/1.0 (board game alerts)"}
 # --- configuración (flag enabled), sigue el patrón de classifier --------------
 _BGG_ENABLED = os.getenv("BGG_ENABLED", "0") not in ("0", "false", "False", "")
 
+# Cortocircuito de proceso: tras el PRIMER fallo estructural (red, 401/403...) se
+# deja de consultar BGG el resto de la ejecución y se registra UNA sola vez. Evita
+# reintentar (y spamear el log con un 401 por anuncio) un servicio caído, y que se
+# cacheen cientos de "no encontrado" falsos. En CI/--once el proceso es efímero.
+_UNAVAILABLE = False
+
 
 def bgg_enabled():
     """True si la integración BGG está activa (bgg.enabled / BGG_ENABLED)."""
@@ -175,17 +181,31 @@ def _get_cache():
 
 
 # --- consulta a BGG -----------------------------------------------------------
+def _bgg_mark_down(reason):
+    """Activa el cortocircuito de BGG para el resto de la ejecución y lo registra
+    UNA vez (warning). No lanza: el llamador ya trata None como 'sin dato'."""
+    global _UNAVAILABLE
+    if not _UNAVAILABLE:
+        _UNAVAILABLE = True
+        log.warning("BGG no disponible (%s); se omite el refuerzo BGG durante el "
+                    "resto de la ejecución", reason)
+
+
 def _get(path, params):
     """GET con manejo de rate-limit: BGG responde 202 mientras procesa y 429 si
     saturas. Reintenta con espera creciente hasta _MAX_RETRIES; si no, None.
-    Devuelve el cuerpo (texto XML) o None ante cualquier fallo."""
+    Devuelve el cuerpo (texto XML) o None ante cualquier fallo. Tras un fallo
+    estructural (red, 401/403...), el cortocircuito (_UNAVAILABLE) corta el resto
+    de la ejecución sin tocar la red."""
+    if _UNAVAILABLE:
+        return None
     url = _BASE + path
     for attempt in range(_MAX_RETRIES + 1):
         try:
             r = requests.get(url, params=params, timeout=_TIMEOUT,
                              headers=_HEADERS)
         except requests.RequestException as e:
-            log.info("BGG red/timeout (%s): %s", path, e)
+            _bgg_mark_down(f"red/timeout ({path}): {e}")
             return None
         if r.status_code == 200:
             return r.text
@@ -196,7 +216,7 @@ def _get(path, params):
             log.info("BGG %s: HTTP %s tras %d reintentos", path,
                      r.status_code, attempt)
             return None
-        log.info("BGG %s: HTTP %s", path, r.status_code)
+        _bgg_mark_down(f"HTTP {r.status_code} ({path})")
         return None
     return None
 
@@ -248,6 +268,8 @@ def lookup(title):
     Usa caché persistente; consulta la red solo en miss (o si el 'no encontrado'
     cacheado ha caducado). NUNCA lanza: ante fallo devuelve None.
     """
+    if _UNAVAILABLE:
+        return None                          # BGG caído en esta ejecución: ni red ni caché
     key = _cache_key(title)
     if not key:
         return None
@@ -262,6 +284,8 @@ def lookup(title):
             return {k: hit.get(k) for k in ("bgg_id", "name", "kind")}
 
     result = _query_bgg(_clean_title(title))
+    if _UNAVAILABLE:
+        return None                          # se cayó durante la consulta: NO cachear un not_found falso
     if result is None:
         cache[key] = {"not_found": True, "ts": _today()}
     else:

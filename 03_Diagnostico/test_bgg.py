@@ -124,6 +124,7 @@ def setup_module():
 def reset(queue):
     """Caché vacia + cola de respuestas para el siguiente escenario."""
     bgg._CACHE = None
+    bgg._UNAVAILABLE = False              # limpia el cortocircuito entre escenarios
     bgg._CACHE_PATH = os.path.join(_TMPDIR, "bgg_cache.json")
     try:
         os.remove(bgg._CACHE_PATH)
@@ -216,6 +217,20 @@ cleaned = bgg._clean_title("🔥 Catan juego de mesa 30€ HAGO ENVIOS")
 check("_clean_title quita ruido/precio/emoji",
       "Catan" in cleaned and "30" not in cleaned and "mesa" not in cleaned.lower(),
       f"cleaned={cleaned!r}")
+
+
+# --- 7a) Cortocircuito: un fallo estructural (401) corta el resto -----------
+reset([FakeResp(401, "Unauthorized"), FakeResp(200, XML_BASE)])
+r = bgg.lookup("Catan")
+check("401 -> None y activa el cortocircuito",
+      r is None and bgg._UNAVAILABLE is True, f"r={r}")
+calls_before = net.calls
+r2 = bgg.lookup("Otro Juego Distinto")
+check("tras 401, la siguiente consulta NO toca la red",
+      net.calls == calls_before and r2 is None, f"calls={net.calls} before={calls_before}")
+check("tras 401, no se cachea un not_found falso",
+      bgg._get_cache().get(bgg._cache_key("Otro Juego Distinto")) is None)
+reset([FakeResp(200, XML_BASE)])         # limpia el cortocircuito para lo que sigue
 
 
 # --- 7b) categorize: expansión por título o por la DESCRIPCIÓN (S4) ---------

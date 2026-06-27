@@ -160,10 +160,35 @@ check("settings activa y ajusta margen",
       and abs(classifier._CATEGORY_NLI_MARGIN - 0.3) < 1e-9)
 
 
+# --- 7) Cortocircuito del NLI: un fallo corta la red el resto de la pasada ---
+classifier._nli_hf_zeroshot = _REAL_ZS       # motor real, con requests.post mockeado
+classifier._NLI_UNAVAILABLE = False
+classifier._CATEGORY_NLI_CACHE.clear()
+classifier._CATEGORY_NLI_ENABLED = True
+post_calls = {"n": 0}
+_real_post = classifier.requests.post
+
+
+def _boom_post(*a, **k):
+    post_calls["n"] += 1
+    raise classifier.requests.RequestException("DNS fail (test)")
+
+
+classifier.requests.post = _boom_post
+r1 = classifier.classify_category(*CASES_COMP[0])     # 1ª: intenta red, falla, activa breaker
+r2 = classifier.classify_category(*CASES_COMP[1])     # 2ª: cortocircuito, sin red
+classifier.requests.post = _real_post
+check("breaker NLI: 1ª toca la red, 2ª no; ambas caen a reglas (base)",
+      post_calls["n"] == 1 and classifier._NLI_UNAVAILABLE is True
+      and r1 == "base" and r2 == "base",
+      f"posts={post_calls['n']} r1={r1} r2={r2}")
+
+
 # restaura
 classifier._nli_hf_zeroshot = _REAL_ZS
 classifier._CATEGORY_NLI_ENABLED = False
 classifier._CATEGORY_NLI_CACHE.clear()
+classifier._NLI_UNAVAILABLE = False
 
 
 print()
