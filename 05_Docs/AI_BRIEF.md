@@ -15,7 +15,8 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 - `main.py`: orquesta ciclos, sueño nocturno, multi-config, novedades, bajas, bajadas de precio y notificaciones.
 - `scraper.py`: API Wallapop + paginación.
-- `classifier.py`: reglas + LLM cascade + circuit breaker + clasificación por lotes (`batch_size` en `bot_settings.yaml`, evita 429 en pasadas grandes).
+- `classifier.py`: clasificación por **reglas** deterministas (base/expansión/componentes/lote/no-juego) + **gate NLI de relevancia VIVO** (Hugging Face zero-shot, `relevance.*` en `bot_settings.yaml`, secret `HF_API_TOKEN`) para keywords ambiguas. La cascada LLM cloud + circuit breaker + clasificación por lotes (`batch_size`) sigue en el código pero **inerte** (retirada).
+- `bgg.py`: refuerzo OPCIONAL con BoardGameGeek (XMLAPI2) para relevancia y base/expansión; caché persistente en `bgg_cache.json`, degradación elegante. **Desactivado por defecto** (`bgg.enabled` en `bot_settings.yaml`).
 - `database.py`: SQLite `alerts.db`. Guarda histórico de alertas eliminadas sin borrar filas (`deleted_reason`/`deleted_at`, `mark_alert_deleted()`).
 - `notifier.py`: emails Gmail.
 - `config_inbox.py`: lee configs por correo (crear/añadir/borrar; el borrado lleva un motivo por alerta y marca el histórico en la BD).
@@ -24,7 +25,8 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 ## Reglas importantes
 
 - Ante la duda, dejar pasar anuncios.
-- El título decide relevancia; el LLM clasifica base/expansión/componentes/lote/no-juego.
+- El **título** decide la relevancia (`classifier.title_matches`); las **reglas** clasifican base/expansión/componentes/lote/no-juego (`_classify_by_rules`).
+- Para keywords **ambiguas** (una palabra común como "cities" o una frase como "rising sun"), un **gate NLI vivo** afina la relevancia SOBRE EL TÍTULO (`nli_relevance_gate`, `_RISKY_KEYWORDS`; soporta multi-palabra con orden), con fallback determinista. Se integra en `main.py:evaluate()` (rama 1, tras `title_matches`).
 - Solo interesan anuncios en español, catalán o inglés. `classifier.looks_foreign_language()` descarta el resto (se asume que un anuncio en otro idioma es el juego en ese idioma) — se llama en `evaluate()` de `main.py` antes de cualquier LLM.
 - No editar configs comentados con dumps genéricos.
 - No ejecutar localmente `main.py` con Actions activo salvo intención clara.

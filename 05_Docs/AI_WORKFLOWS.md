@@ -35,11 +35,26 @@
 ## Cambio en clasificador
 
 1. Revisar `classifier.py`.
-2. Revisar tests `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_batch.py`.
+2. Revisar tests `test_cascade.py`, `test_llm_cloud.py`, `test_new_providers.py`, `test_batch.py` (cascada LLM, hoy inerte).
 3. Mantener fail-fast ante 429.
 4. Mantener fallback `rules` (también en la clasificación por lotes: índice ausente o JSON inválido → reglas, nunca se descarta).
 5. Ante duda, preferir false positive a anuncio perdido.
 6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`.
+
+## Cambio en el gate de relevancia (NLI) o en BGG
+
+Gate NLI de relevancia para keywords ambiguas (`_RISKY_KEYWORDS`, `nli_relevance_gate`):
+
+1. Vive en `classifier.py`; se integra en `main.py:evaluate()` (rama 1, tras `title_matches`).
+2. Decide SOLO sobre el TÍTULO. Soporta keywords de una palabra ("cities") y frases multi-palabra con orden ("rising sun", `_phrase_in_order`).
+3. NLI vivo (Hugging Face, secret `HF_API_TOKEN`, `relevance.*` en `bot_settings.yaml`) con **fallback determinista** (confusores + regla de orden). Mantener siempre el fallback: ante la duda, dejar pasar.
+4. Test: `py 03_Diagnostico/test_nli_relevance.py` (sin red; smoke vivo opcional con `HF_API_TOKEN`).
+
+Refuerzo BGG (`bgg.py`, BoardGameGeek XMLAPI2):
+
+1. Módulo AUTÓNOMO (no importa de `classifier`/`main`). Integración en `main.py:_refine_categories_with_bgg` (solo mueve base→expansion). Flag `bgg.enabled` (false por defecto).
+2. Degradación elegante: ante red/timeout/202/429/parseo devuelve `None` y sigue como hoy. Caché en `01_Core/bgg_cache.json` (la commitea Actions vía `git add -A 01_Core`).
+3. Test: `py 03_Diagnostico/test_bgg.py` (fixtures mockeadas; smoke real opcional con `BGG_SMOKE=1`).
 
 ## Validación de clasificador NLI (experimental)
 

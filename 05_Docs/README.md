@@ -326,6 +326,30 @@ un modelo de 3B marcaba anuncios válidos como irrelevantes con demasiada
 frecuencia. El título es una señal fiable y barata; el LLM se reserva para lo
 que sí requiere contexto (¿es un juego? ¿base o expansión? ¿lote?).
 
+### Keywords ambiguas: gate de relevancia (NLI)
+Algunas keywords son tan comunes que cuelan **otros juegos** que las contienen:
+una palabra ("cities" → *Lost Cities*, *Underwater Cities*, *Cities of Sigmar*…)
+o una frase ("rising sun" → *Setting Sun Rising*, dardos *Rising Sun*…). Para
+ESAS keywords (definidas en `classifier.py` → `_RISKY_KEYWORDS`) hay un **gate de
+relevancia** que decide, **solo a partir del título**, si el anuncio es de verdad
+el juego buscado:
+- **NLI vivo** (Hugging Face zero-shot, modelo multilingüe; secret `HF_API_TOKEN`
+  en CI) cuando hay servicio: entiende el significado y el orden de las palabras.
+- **Fallback determinista** si el NLI no responde: confusores conocidos + una
+  regla de **orden contiguo** para las frases (p.ej. "Setting Sun Rising" no es
+  "rising sun"). Ante la duda, **deja pasar**.
+
+Es reversible (`relevance.enabled` en `bot_settings.yaml`) y solo se dispara en
+alertas con keyword ambigua; el resto de anuncios no se ven afectados.
+
+### Refuerzo opcional con BoardGameGeek (BGG)
+`bgg.py` puede consultar BoardGameGeek (XMLAPI2) como "diccionario que se mantiene
+solo": confirma si un título es un juego real y si BGG lo cataloga como base o
+expansión, reforzando la distinción sin listas a mano. Es **refuerzo, no
+autoridad** (si BGG no reconoce un título, no se descarta) y **está desactivado
+por defecto** (`bgg.enabled: false`). Cachea en `bgg_cache.json` y degrada con
+elegancia si BGG falla.
+
 ### Eficiencia con Ollama
 Cada anuncio se clasifica **una sola vez** (la decisión se guarda en la BD).
 En ciclos sucesivos, solo se clasifican los anuncios nuevos. Los anuncios
@@ -366,8 +390,12 @@ inicial). Ojo: la BD es compartida — borrarla resetea lo visto de **todos**
 los usuarios.
 
 ## ⚠️ En exploración: alternativas de clasificación
-**Validación de NLI:** hay un plan de 4 fases en `03_Diagnostico/` para evaluar
-un clasificador basado en NLI (Natural Language Inference, Hugging Face) como
-alternativa a la cascada LLM actual. Ver `AI_WORKFLOWS.md` sección "Validación
-de clasificador NLI". Esto NO afecta el comportamiento actual ni está activado
-en producción aún.
+**Ya en producción:** el **gate de relevancia por NLI** para keywords ambiguas
+(ver "Keywords ambiguas: gate de relevancia (NLI)" más arriba) sí está activo por
+defecto (`relevance.enabled: true`). El **refuerzo BGG** existe pero va desactivado
+(`bgg.enabled: false`).
+
+**Todavía experimental:** clasificar la **categoría** completa
+(base/expansión/componentes/lote/no-juego) con NLI en vez de con reglas. Hay un
+plan de 4 fases en `03_Diagnostico/` para evaluarlo (ver `AI_WORKFLOWS.md` sección
+"Validación de clasificador NLI"). Eso NO está activado en producción aún.

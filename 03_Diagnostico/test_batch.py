@@ -87,6 +87,23 @@ else:
                                     "Los Castillos de Borgoña") is True)
 
 
+# --- 4b) ORDEN multi-palabra (S2): las palabras de la keyword presentes deben
+# aparecer EN ORDEN (con huecos), no reordenadas. No depende de wordfreq.
+check("orden: 'rising sun' NO casa con 'Sun Rising'",
+      classifier.title_matches("rising sun", "Sun Rising juego de mesa") is False)
+check("orden: 'rising sun' SI casa con 'Rising Sun'",
+      classifier.title_matches("rising sun", "Rising Sun CMON completo") is True)
+check("orden: 'rising sun' NO casa con 'Setting Sun Rising'",
+      classifier.title_matches("rising sun", "Paper Wars Setting Sun Rising") is False)
+check("orden con huecos: 'estaciones inis' SI casa con 'Estaciones de Inis'",
+      classifier.title_matches("estaciones inis", "Las Estaciones de Inis") is True)
+check("orden con huecos: 'carcassonne posadas catedrales' SI casa",
+      classifier.title_matches("carcassonne posadas catedrales",
+                               "Carcassonne: Posadas y Catedrales") is True)
+check("orden: 'mare nostrum' NO casa con 'Nostrum Mare' (reordenado)",
+      classifier.title_matches("mare nostrum", "Nostrum Mare edicion") is False)
+
+
 # --- 5) check_lote por reglas (rama 2) ------------------------------------
 lote = classifier.check_lote("catan", "Lote de juegos de mesa",
                              "Vendo juntos Catan, Risk y Azul. Se venden en lote.")

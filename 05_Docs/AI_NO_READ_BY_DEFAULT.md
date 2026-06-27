@@ -3,6 +3,7 @@
 No leer salvo petición explícita:
 
 - `alerts.db`
+- `01_Core/bgg_cache.json`: caché generada de BoardGameGeek (se crea/crece sola cuando `bgg.enabled: true`; como `alerts.db`, no aporta como lectura)
 - `04_Logs/`
 - `06_Backups/`
 - `99_Obsoletos/`

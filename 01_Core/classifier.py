@@ -619,6 +619,29 @@ def is_weak(word):
                zipf_frequency(word, "en")) >= _WEAK_ZIPF_THRESHOLD
 
 
+def _keyword_in_order(kw_norms, title_words):
+    """S2 (orden multi-palabra): las palabras de la keyword que APARECEN en el
+    título deben hacerlo en el MISMO ORDEN que en la keyword, aunque haya otras
+    palabras en medio (orden "con huecos" = subsecuencia). Con 0-1 palabras
+    presentes el orden es trivial -> True.
+
+    Así 'rising sun' casa con 'Rising ... Sun' pero NO con 'Sun Rising', y a la vez
+    NO rompe alertas reales como 'estaciones inis' -> 'Estaciones de Inis' (van en
+    orden, con 'de' en medio) ni 'carcassonne posadas catedrales' ->
+    'Carcassonne: Posadas y Catedrales'.
+    """
+    present = [n for n in kw_norms if n in title_words]
+    if len(present) < 2:
+        return True
+    pos = 0
+    for n in present:
+        try:
+            pos = title_words.index(n, pos) + 1
+        except ValueError:
+            return False                  # aparece, pero fuera de orden
+    return True
+
+
 def title_matches(target, title):
     """
     True si el TÍTULO contiene el juego buscado. Compara por palabra completa
@@ -630,8 +653,14 @@ def title_matches(target, title):
     palabras. Si el termino es de una sola palabra, cualquier coincidencia vale
     (no hay alternativa mas distintiva). Evita colar 'Estacion de tren' por
     'estaciones' o 'Camisa Burgundy' por 'borgoña'.
+
+    ORDEN (S2): si dos o mas palabras de la keyword aparecen en el titulo, deben
+    hacerlo EN ORDEN (con huecos permitidos). Asi una keyword multi-palabra como
+    'rising sun' NO casa con 'Sun Rising' (otro juego), sin romper titulos con
+    palabras intercaladas como 'Las Estaciones de Inis'. Ver _keyword_in_order.
     """
-    t_words = set(re.findall(r"\w+", _normalize(title)))
+    title_words = re.findall(r"\w+", _normalize(title))
+    t_words = set(title_words)
     # Pares (original con tildes, normalizada) de las palabras significativas.
     raw = re.findall(r"\w+", target.lower())
     pairs = [(w, _normalize(w)) for w in raw if _normalize(w) not in _STOPWORDS]
@@ -640,6 +669,8 @@ def title_matches(target, title):
     matched = [(orig, norm) for orig, norm in pairs if norm in t_words]
     if not matched:
         return False
+    if not _keyword_in_order([norm for _, norm in pairs], title_words):
+        return False                      # palabras presentes pero en otro orden
     if any(not is_weak(orig) for orig, norm in matched):
         return True                       # coincide una palabra distintiva
     if len(pairs) == 1:

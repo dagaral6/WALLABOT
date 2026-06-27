@@ -34,6 +34,7 @@ todos los overrides por variables de entorno.
 | `CEREBRAS_API_KEY` | clave de cloud.cerebras.ai | clasificador LLM (respaldo, roto actualmente) |
 | `OPENROUTER_API_KEY` | clave de openrouter.ai | clasificador LLM (respaldo) |
 | `GH_MODELS_TOKEN` | PAT con permiso `models:read` | clasificador LLM (respaldo) |
+| `HF_API_TOKEN` | token `hf_...` de huggingface.co (read) | gate NLI de relevancia para keywords ambiguas (cities, rising sun) |
 | `ALLOWED_SENDERS` | `correo:uid,correo:uid` | lista blanca de remitentes |
 
 No hace falta crear todos: el bot solo usa el **primero de la cascada** que
@@ -49,6 +50,12 @@ en CI descomentando `LLM_CASCADE` en `.github/workflows/wallabot.yml`).
 Los secretos tienen prioridad sobre los YAML del repo (codigo ya
 preparado). `ALLOWED_SENDERS` como secreto ademas evita exponer correos
 personales en los logs.
+
+> **`HF_API_TOKEN` es opcional.** Solo lo usa el gate NLI de relevancia para
+> keywords ambiguas (cities, rising sun). Sin token, la API pública de Hugging
+> Face funciona con cuota baja y, si falla, el gate cae a su **fallback
+> determinista** (confusores conocidos + regla de orden para frases): el bot
+> sigue funcionando igual. El workflow ya expone el secreto si existe.
 
 ## Presupuesto de minutos (repo privado: 2.000 min/mes gratis)
 
