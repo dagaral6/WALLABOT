@@ -59,7 +59,15 @@ _MAX_RETRIES = _envi("BGG_MAX_RETRIES", 3)   # reintentos ante 202/429
 _RETRY_WAIT = _envf("BGG_RETRY_WAIT", 2.0)   # base de espera entre reintentos (s)
 _CACHE_TTL_DAYS = _envi("BGG_CACHE_TTL_DAYS", 30)  # frescura del "no encontrado"
 
-_HEADERS = {"User-Agent": "wallabot/1.0 (board game alerts)"}
+# BGG está tras Cloudflare y rechaza (401/403) los User-Agent "de bot". Usamos uno
+# de navegador + Accept de XML para no quedar bloqueados. Configurable por BGG_UA.
+_HEADERS = {
+    "User-Agent": os.getenv(
+        "BGG_UA",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"),
+    "Accept": "application/xml, text/xml;q=0.9, */*;q=0.8",
+}
 
 
 # --- configuración (flag enabled), sigue el patrón de classifier --------------

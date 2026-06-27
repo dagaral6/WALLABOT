@@ -79,10 +79,11 @@ search:
 # las frases). Solo se dispara en alertas con keyword riesgosa (definidas en
 # classifier.py: _RISKY_KEYWORDS), asi que no toca el resto. Reversible: enabled=false.
 #
-# Token HF: variable de entorno HF_API_TOKEN (Secret en CI). Sin token -> la API
-# publica suele ir con cuota baja; si falla, se usa SOLO el fallback determinista.
-# Cada valor admite override por variable de entorno (RELEVANCE_ENABLED, NLI_MODEL,
-# NLI_MARGIN), que SIEMPRE tiene prioridad sobre esto.
+# Token HF: HF_API_TOKEN (Secret en CI) es OBLIGATORIO: el endpoint actual
+# (Inference Providers, router.huggingface.co) exige autenticacion y FACTURA por
+# uso. Sin token o ante fallo -> se usa SOLO el fallback determinista (relevancia)
+# o las reglas (categoria). Override por entorno: RELEVANCE_ENABLED, NLI_MODEL,
+# NLI_MARGIN, NLI_API_URL (por si HF vuelve a cambiar el endpoint).
 relevance:
   enabled: true
   model: joeddav/xlm-roberta-large-xnli   # multilingue (mejor en español)

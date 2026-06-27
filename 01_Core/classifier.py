@@ -310,7 +310,12 @@ try:
 except ValueError:
     _NLI_MARGIN = 0.15
 _NLI_HYP_TEMPLATE = "Este anuncio trata de {}."
-_NLI_API_URL = "https://api-inference.huggingface.co/models/{model}"
+# Endpoint de inferencia. El antiguo api-inference.huggingface.co fue RETIRADO por
+# HF; el actual es el router de Inference Providers (provider hf-inference), que
+# EXIGE HF_API_TOKEN y factura por uso. Mismo payload pipeline y misma respuesta
+# {labels, scores}. Override por NLI_API_URL si HF vuelve a cambiarlo.
+_NLI_API_URL = os.getenv(
+    "NLI_API_URL", "https://router.huggingface.co/hf-inference/models/{model}")
 # Cortocircuito de proceso: tras el PRIMER fallo del NLI (red/DNS, 5xx, 429, token
 # inválido...) se deja de llamar a la red el resto de la ejecución y se registra
 # UNA sola vez. Evita reintentar (y spamear el log con un traceback por anuncio) un
@@ -413,11 +418,12 @@ def _nli_mark_down(reason):
 
 
 def _nli_hf_zeroshot(text, candidate_labels, timeout=20):
-    """HF Inference API (zero-shot) genérico: devuelve {label: score} o lanza
-    RuntimeError si el servicio no está disponible (sin token, 503 cold-start, 429
-    cuota, timeout, red o formato inesperado). El token se lee de HF_API_TOKEN
-    (NUNCA hardcodeado). Tras el primer fallo, el cortocircuito (_NLI_UNAVAILABLE)
-    hace que las siguientes llamadas fallen de inmediato sin tocar la red."""
+    """HF zero-shot (Inference Providers, router) genérico: devuelve {label: score}
+    o lanza RuntimeError si el servicio no está disponible (sin token, 401/403, 404
+    modelo no servido, 503 cold-start, 429 cuota, timeout, red o formato inesperado).
+    El token (HF_API_TOKEN, NUNCA hardcodeado) es OBLIGATORIO en el router. Tras el
+    primer fallo, el cortocircuito (_NLI_UNAVAILABLE) hace que las siguientes
+    llamadas fallen de inmediato sin tocar la red."""
     if _NLI_UNAVAILABLE:
         raise RuntimeError("NLI no disponible (cortocircuito de esta ejecución)")
     token = os.getenv("HF_API_TOKEN")
