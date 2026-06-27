@@ -39,22 +39,28 @@
 3. Mantener fail-fast ante 429.
 4. Mantener fallback `rules` (también en la clasificación por lotes: índice ausente o JSON inválido → reglas, nunca se descarta).
 5. Ante duda, preferir false positive a anuncio perdido.
-6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`.
+6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`: vocabulario de listas + **langdetect** como señal secundaria sobre la DESCRIPCIÓN (umbral alto, `language.*`; `test_idioma.py`, `diag_idioma.py`).
 
 ## Cambio en el gate de relevancia (NLI) o en BGG
 
 Gate NLI de relevancia para keywords ambiguas (`_RISKY_KEYWORDS`, `nli_relevance_gate`):
 
 1. Vive en `classifier.py`; se integra en `main.py:evaluate()` (rama 1, tras `title_matches`).
-2. Decide SOLO sobre el TÍTULO. Soporta keywords de una palabra ("cities") y frases multi-palabra con orden ("rising sun", `_phrase_in_order`).
+2. Decide SOLO sobre el TÍTULO. Soporta keywords de una palabra ("cities") y frases multi-palabra con orden contiguo en el fallback (`_phrase_in_order`). Además, `title_matches` exige orden (subsecuencia con huecos, `_keyword_in_order`) en TODAS las keywords multi-palabra, no solo las riesgosas: "rising sun" ≠ "sun rising".
 3. NLI vivo (Hugging Face, secret `HF_API_TOKEN`, `relevance.*` en `bot_settings.yaml`) con **fallback determinista** (confusores + regla de orden). Mantener siempre el fallback: ante la duda, dejar pasar.
 4. Test: `py 03_Diagnostico/test_nli_relevance.py` (sin red; smoke vivo opcional con `HF_API_TOKEN`).
 
 Refuerzo BGG (`bgg.py`, BoardGameGeek XMLAPI2):
 
-1. Módulo AUTÓNOMO (no importa de `classifier`/`main`). Integración en `main.py:_refine_categories_with_bgg` (solo mueve base→expansion). Flag `bgg.enabled` (false por defecto).
-2. Degradación elegante: ante red/timeout/202/429/parseo devuelve `None` y sigue como hoy. Caché en `01_Core/bgg_cache.json` (la commitea Actions vía `git add -A 01_Core`).
+1. Módulo AUTÓNOMO (no importa de `classifier`/`main`). `bgg.categorize(título, descripción)` mueve base→expansion por el título o porque la DESCRIPCIÓN nombra una expansión concreta del base (expansiones del base vía `thing`, guarda anti-«compatible» `_COMPAT_RE`). Integración en `main.py:_refine_categories_with_bgg`. Flag `bgg.enabled`.
+2. Degradación elegante: ante red/timeout/202/429/parseo devuelve `None` y sigue como hoy. Caché en `01_Core/bgg_cache.json` (la commitea Actions vía `git add -A 01_Core`); las expansiones del base se cachean bajo `__exp__:<id>`.
 3. Test: `py 03_Diagnostico/test_bgg.py` (fixtures mockeadas; smoke real opcional con `BGG_SMOKE=1`).
+
+Validación NLI de categoría (`classifier.py`, `category_nli.*`):
+
+1. Las REGLAS son el primer filtro (resultado provisional); si `category_nli.enabled`, el NLI lo VALIDA sobre la descripción y puede mover `base`→`components`/`expansion` (`_maybe_refine_category_nli`, `_category_nli`, motor `_nli_hf_zeroshot`). Mismo secret `HF_API_TOKEN` y modelo que relevancia.
+2. Gateado por coste: solo se llama al NLI si reglas=`base`, HAY descripción y el texto tiene vocabulario de accesorio/expansión. Conservador: ante la duda mantiene reglas; nunca descarta ni marca `not_game`; no toca lotes. Sin servicio NLI → reglas.
+3. Test: `py 03_Diagnostico/test_category_nli.py` (NLI mockeado, sin red).
 
 ## Validación de clasificador NLI (experimental)
 

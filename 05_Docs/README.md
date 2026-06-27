@@ -342,13 +342,39 @@ el juego buscado:
 Es reversible (`relevance.enabled` en `bot_settings.yaml`) y solo se dispara en
 alertas con keyword ambigua; el resto de anuncios no se ven afectados.
 
+Con independencia de ese gate, la coincidencia de título (`title_matches`) exige
+**orden de palabras** en TODA keyword de varias palabras (subsecuencia con
+huecos): "rising sun" no acepta "sun rising", pero "estaciones inis" sigue
+casando con "Las Estaciones de Inis".
+
 ### Refuerzo opcional con BoardGameGeek (BGG)
 `bgg.py` puede consultar BoardGameGeek (XMLAPI2) como "diccionario que se mantiene
-solo": confirma si un título es un juego real y si BGG lo cataloga como base o
-expansión, reforzando la distinción sin listas a mano. Es **refuerzo, no
-autoridad** (si BGG no reconoce un título, no se descarta) y **está desactivado
-por defecto** (`bgg.enabled: false`). Cachea en `bgg_cache.json` y degrada con
-elegancia si BGG falla.
+solo". `categorize(título, descripción)` confirma si un título es un juego real y
+detecta **expansión** de dos formas: por el propio título, o porque la
+**descripción** nombra una expansión concreta del juego base (BGG lista las
+expansiones de cada base; una guarda evita el falso positivo de los anuncios que
+solo mencionan que algo es "compatible con…"). Es **refuerzo, no autoridad** (si
+BGG no reconoce un título, no se descarta) y reversible (`bgg.enabled`). Cachea en
+`bgg_cache.json` y degrada con elegancia si BGG falla. Limitación: los nombres de
+BGG están en inglés, así que las descripciones en español casan pocas veces.
+
+### Idioma: solo español, catalán o inglés
+`looks_foreign_language` descarta anuncios en otros idiomas (italiano, alemán…)
+combinando un **vocabulario** de palabras inequívocas de cada idioma con
+**langdetect** como segunda señal, aplicada SOLO a la descripción y con umbral
+alto. El título no se analiza con langdetect: al estar lleno de nombres propios
+("Camel Up Carcassonne") engaña al detector. Reversible (`language.langdetect_enabled`).
+Requiere la dependencia `langdetect`; sin ella, se usa solo el vocabulario.
+
+### Validación de categoría por NLI (opcional)
+Las reglas deciden la categoría (base/expansión/componentes/lote/no-juego). Con
+`category_nli.enabled: true`, el NLI (mismo motor zero-shot que el gate de
+relevancia, secret `HF_API_TOKEN`) **valida** ese resultado leyendo la
+**descripción** y corrige los `base` que en realidad son `componentes` (insertos,
+fichas sueltas, cajas vacías) o `expansión`. Solo se invoca cuando hace falta
+(reglas=base, hay descripción y vocabulario de accesorio/expansión), nunca
+descarta ni marca no-juego, no toca lotes, y si el NLI no responde se queda con
+las reglas.
 
 ### Eficiencia con Ollama
 Cada anuncio se clasifica **una sola vez** (la decisión se guarda en la BD).
@@ -390,12 +416,15 @@ inicial). Ojo: la BD es compartida — borrarla resetea lo visto de **todos**
 los usuarios.
 
 ## ⚠️ En exploración: alternativas de clasificación
-**Ya en producción:** el **gate de relevancia por NLI** para keywords ambiguas
-(ver "Keywords ambiguas: gate de relevancia (NLI)" más arriba) sí está activo por
-defecto (`relevance.enabled: true`). El **refuerzo BGG** existe pero va desactivado
-(`bgg.enabled: false`).
+**En producción, activo por defecto:** el **gate de relevancia por NLI** para
+keywords ambiguas (`relevance.enabled: true`).
 
-**Todavía experimental:** clasificar la **categoría** completa
-(base/expansión/componentes/lote/no-juego) con NLI en vez de con reglas. Hay un
-plan de 4 fases en `03_Diagnostico/` para evaluarlo (ver `AI_WORKFLOWS.md` sección
-"Validación de clasificador NLI"). Eso NO está activado en producción aún.
+**Implementado y reversible (flag en `bot_settings.yaml`):** el **refuerzo BGG**
+(`bgg.enabled`), la **detección de idioma con langdetect** (`language.langdetect_enabled`) y
+la **validación de categoría por NLI** (`category_nli.enabled`) — esta última NO
+reemplaza las reglas, solo corrige `base`→`componentes`/`expansión` sobre la
+descripción. Actívalos a conciencia (consumen cuota de Hugging Face / red).
+
+**Todavía experimental:** SUSTITUIR por completo las reglas de categoría por un
+clasificador NLI. Hay un plan de 4 fases en `03_Diagnostico/` para evaluarlo (ver
+`AI_WORKFLOWS.md` sección "Validación de clasificador NLI"). Eso NO está activado.
