@@ -3,3 +3,7 @@ PyYAML>=6.0
 # Frecuencia lexica (es/en) para el matching: distingue el nombre propio del
 # juego (raro -> fuerte) de palabras comunes/ruido (estaciones, risk... -> debil).
 wordfreq>=3.0
+# Detección de idioma (señal secundaria del filtro looks_foreign_language, para
+# cazar anuncios en italiano/otros que el vocabulario no cubre). Opcional: si no
+# está instalado, el filtro degrada con elegancia al vocabulario de siempre.
+langdetect>=1.0.9

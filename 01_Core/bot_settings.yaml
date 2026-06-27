@@ -110,6 +110,22 @@ bgg:
 
 
 # ============================================================
+#  IDIOMA — detección con langdetect (refuerzo del filtro de idioma)
+# ============================================================
+# El filtro looks_foreign_language solo acepta es/ca/en. Su vocabulario de listas
+# no cubre todos los anuncios extranjeros (p. ej. un titulo italiano con palabras
+# fuera de la lista). langdetect añade una señal SECUNDARIA: marca foreign un
+# idioma NO permitido (it/fr/de/pt/nl...) con ALTA confianza y SOLO sobre la
+# DESCRIPCION (prosa); el titulo no se usa (nombres propios -> falsos positivos,
+# p.ej. 'Camel Up Carcassonne' -> it). Exige una descripcion con texto suficiente.
+# Ante la duda, dejar pasar. Degradacion elegante: sin langdetect, solo vocabulario.
+# Override por entorno: LANGDETECT_ENABLED, LANGDETECT_MIN_PROB, LANGDETECT_MIN_DESC.
+language:
+  langdetect_enabled: true
+  langdetect_min_prob: 0.95     # confianza minima para marcar foreign (alto = conservador)
+
+
+# ============================================================
 #  LLM — cascada de clasificacion (comun a TODOS los usuarios)
 # ============================================================
 # Se prueban en orden y gana el PRIMERO que responde; 'rules' es el terminal

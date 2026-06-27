@@ -35,6 +35,13 @@ try:
 except ImportError:                      # sin wordfreq: todas las palabras
     zipf_frequency = None                # se tratan como "fuertes" (compat)
 
+try:                                     # detección de idioma (señal secundaria)
+    from langdetect import detect_langs as _detect_langs
+    from langdetect import DetectorFactory as _DetectorFactory
+    _DetectorFactory.seed = 0            # determinista entre ejecuciones
+except ImportError:                      # sin langdetect: solo el vocabulario
+    _detect_langs = None
+
 log = logging.getLogger("classifier")
 
 # Configurable por entorno: OLLAMA_HOST=http://host:11434 (cloud / remoto).
@@ -125,6 +132,9 @@ _FOREIGN_LANG_VOCAB = [
     "espansione", "espansioni", "scatola", "ottime condizioni", "usato",
     "nuovo di zecca", "nuovo", "perfetto", "della", "dei", "delle", "degli",
     "lingua", "da tavolo", "tedesca", "tedesco", "con scatola",
+    # ampliación jun 2026 (fugas reales it que el vocab no cubría):
+    "carte", "risorse", "coloni", "raccoglitori", "segnalini", "plancia",
+    "pedine", "mazzo", "regolamento", "tessere", "scatole", "giocare",
     # --- portugués ---
     "jogo de tabuleiro", "tabuleiro", "jogo", "jogos", "muito bom estado",
     "perfeito", "não", "edição", "expansão", "versão", "português",
@@ -149,6 +159,69 @@ _FOREIGN_DECL_RE = re.compile(
     r"(?:" + _FOREIGN_DECLARED + r")\b")
 
 
+# --- Detección de idioma como señal SECUNDARIA (refuerza el vocabulario) ------
+# El vocabulario de listas no cubre todos los anuncios extranjeros (p.ej. un
+# título italiano con palabras que no estaban en la lista). langdetect, ya que
+# existe, da una segunda señal. CONSERVADORA a propósito: solo marca foreign un
+# idioma NO permitido con ALTA confianza y SOLO sobre la DESCRIPCIÓN (prosa). El
+# TÍTULO no se usa aquí: lleno de nombres propios y a menudo en inglés, engaña a
+# langdetect ("Camel Up Carcassonne" -> it 0.9999; "Rising Sun ... Ed." -> de
+# 0.9999), lo que rechazaría anuncios válidos. Por eso se exige una descripción
+# con texto suficiente (principio del proyecto: ante la duda, dejar pasar). El
+# título extranjero ya lo cubre el vocabulario.
+_ALLOWED_LANGS = {"es", "ca", "en"}
+_LANGDETECT_ENABLED = os.getenv("LANGDETECT_ENABLED", "1") not in ("0", "false", "False")
+try:
+    _LANGDETECT_MIN_PROB = float(os.getenv("LANGDETECT_MIN_PROB", "0.95"))
+except ValueError:
+    _LANGDETECT_MIN_PROB = 0.95
+try:
+    _LANGDETECT_MIN_DESC = int(os.getenv("LANGDETECT_MIN_DESC", "40"))
+except ValueError:
+    _LANGDETECT_MIN_DESC = 40
+
+
+def configure_language_from_settings(settings):
+    """Aplica la sección 'language' de bot_settings.yaml (langdetect). Entorno >
+    yaml > default. Idempotente."""
+    global _LANGDETECT_ENABLED, _LANGDETECT_MIN_PROB
+    lang = (settings or {}).get("language") or {}
+    if ("LANGDETECT_ENABLED" not in os.environ
+            and lang.get("langdetect_enabled") is not None):
+        _LANGDETECT_ENABLED = bool(lang.get("langdetect_enabled"))
+    if ("LANGDETECT_MIN_PROB" not in os.environ
+            and lang.get("langdetect_min_prob") is not None):
+        try:
+            _LANGDETECT_MIN_PROB = float(lang["langdetect_min_prob"])
+        except (TypeError, ValueError):
+            log.warning("language.langdetect_min_prob invalido: %s",
+                        lang.get("langdetect_min_prob"))
+
+
+def _langdetect_foreign(title, description):
+    """True si langdetect detecta un idioma NO permitido (it/fr/de/pt/nl...) con
+    prob >= _LANGDETECT_MIN_PROB en la DESCRIPCIÓN. Usa SOLO la descripción (prosa
+    fiable), nunca el título (nombres propios -> falsos positivos). Requiere una
+    descripción con texto suficiente (>= _LANGDETECT_MIN_DESC). Degradación
+    elegante: sin langdetect, desactivado o descripción corta -> False.
+
+    (El parámetro `title` se mantiene en la firma por claridad del llamador, pero
+    NO se usa: el título extranjero lo cubre el vocabulario, no langdetect.)"""
+    if not (_LANGDETECT_ENABLED and _detect_langs is not None):
+        return False
+    desc = (description or "").strip()
+    if len(desc) < _LANGDETECT_MIN_DESC:  # poca prosa: detección no fiable
+        return False
+    try:
+        langs = _detect_langs(desc[:600])
+    except Exception:                     # langdetect lanza ante texto sin features
+        return False
+    if not langs:
+        return False
+    top = langs[0]
+    return top.lang not in _ALLOWED_LANGS and top.prob >= _LANGDETECT_MIN_PROB
+
+
 def looks_foreign_language(title, description):
     """True si el título o la descripción indican que el juego está en un idioma
     distinto de español, catalán o inglés: por vocabulario inequívoco del idioma
@@ -161,9 +234,17 @@ def looks_foreign_language(title, description):
     de la caja es irrelevante para el comprador. El override usa señales EN
     ESPAÑOL/permitidas, que no aparecen en una descripción genuinamente en otro
     idioma, así que no deja pasar juegos realmente inservibles por idioma.
+
+    Dos señales de "idioma extranjero": (1) el vocabulario/declaración de siempre
+    y (2) langdetect (secundaria, conservadora; ver _langdetect_foreign). El
+    override _PLAYABLE_OK manda sobre AMBAS: si el anuncio dice que es jugable en
+    un idioma permitido, no se descarta aunque la caja esté en otro idioma.
     """
     norm = _normalize(f"{title} {description}")
-    if not (_FOREIGN_LANG_RE.search(norm) or _FOREIGN_DECL_RE.search(norm)):
+    foreign = bool(_FOREIGN_LANG_RE.search(norm) or _FOREIGN_DECL_RE.search(norm))
+    if not foreign:
+        foreign = _langdetect_foreign(title, description)   # señal secundaria
+    if not foreign:
         return False
     if _PLAYABLE_OK_RE.search(norm):
         return False
@@ -807,6 +888,7 @@ def configure_from_settings(settings):
     llama a configure_from_settings()."""
     global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN, _BATCH_SIZE
     configure_relevance_from_settings(settings)
+    configure_language_from_settings(settings)
     llm = (settings or {}).get("llm") or {}
 
     if "LLM_CASCADE" not in os.environ and "LLM_PROVIDER" not in os.environ:
