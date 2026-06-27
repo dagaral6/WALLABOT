@@ -106,7 +106,7 @@ relevance:
 # Override por entorno: BGG_ENABLED (y BGG_TIMEOUT/BGG_MAX_RETRIES/BGG_RETRY_WAIT/
 # BGG_CACHE_TTL_DAYS).
 bgg:
-  enabled: false
+  enabled: true
 
 
 # ============================================================
@@ -123,6 +123,24 @@ bgg:
 language:
   langdetect_enabled: true
   langdetect_min_prob: 0.95     # confianza minima para marcar foreign (alto = conservador)
+
+
+# ============================================================
+#  CATEGORIA por NLI (valida base/expansion/components)
+# ============================================================
+# La categoria la deciden las REGLAS (resultado provisional); con esto activado, el
+# NLI (zero-shot, Hugging Face, mismo modelo que relevance.model, secret
+# HF_API_TOKEN) la VALIDA usando sobre todo la DESCRIPCION: corrige los 'base' que
+# en realidad son 'components' (insertos, fichas sueltas, cajas vacias) o
+# 'expansion'. Solo se invoca cuando las reglas dicen 'base', HAY descripcion y el
+# texto tiene vocabulario de accesorio/expansion (gateo por coste). Conservador:
+# ante la duda mantiene las reglas; nunca descarta ni marca not_game; no toca lotes.
+# Degradacion elegante: sin servicio NLI -> reglas. Reversible: enabled=false.
+# Override por entorno: CATEGORY_NLI_ENABLED, CATEGORY_NLI_MARGIN.
+category_nli:
+  enabled: true
+  model: joeddav/xlm-roberta-large-xnli   # multilingue
+  margin: 0.15                  # margen minimo de score entre la 1a y 2a hipotesis
 
 
 # ============================================================

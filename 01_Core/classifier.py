@@ -317,10 +317,37 @@ _NLI_API_URL = "https://api-inference.huggingface.co/models/{model}"
 # entre runs, así que basta con caché de proceso).
 _RELEVANCE_CACHE: dict[tuple[str, str], str] = {}
 
+# --- Categoría por NLI (Entrega D / S3) --------------------------------------
+# Las REGLAS dan un resultado PROVISIONAL y el NLI lo VALIDA (confirma o corrige)
+# usando sobre todo la DESCRIPCIÓN. Mismo motor zero-shot (HF) que el gate de
+# relevancia. Reversible (category_nli.enabled) y DESACTIVADO por defecto.
+# Conservador: solo mueve 'base' -> 'components'/'expansion' por MARGEN; ante la
+# duda deja el resultado de reglas (nunca a not_game, nunca descarta).
+_CATEGORY_NLI_ENABLED = os.getenv(
+    "CATEGORY_NLI_ENABLED", "0") not in ("0", "false", "False", "")
+try:
+    _CATEGORY_NLI_MARGIN = float(os.getenv("CATEGORY_NLI_MARGIN", str(_NLI_MARGIN)))
+except ValueError:
+    _CATEGORY_NLI_MARGIN = _NLI_MARGIN
+# Hipótesis en español (idioma de los anuncios). HF rellena {} de _NLI_HYP_TEMPLATE.
+_CATEGORY_NLI_LABELS = {
+    "base":       "un juego de mesa completo",
+    "expansion":  "una expansión de un juego de mesa",
+    "components": "componentes o accesorios sueltos de un juego de mesa",
+}
+_CATEGORY_LABEL_TO_CAT = {v: k for k, v in _CATEGORY_NLI_LABELS.items()}
+# Caché en proceso: texto normalizado -> categoría ("" = indeterminado/no aporta).
+_CATEGORY_NLI_CACHE: dict[str, str] = {}
+
 
 def relevance_enabled():
     """True si el gate de relevancia está activo (relevance.enabled / RELEVANCE_ENABLED)."""
     return _RELEVANCE_ENABLED
+
+
+def category_nli_enabled():
+    """True si el NLI de categoría está activo (category_nli.enabled / env)."""
+    return _CATEGORY_NLI_ENABLED
 
 
 def is_risky_keyword(kw):
@@ -367,21 +394,19 @@ def _phrase_in_order(title, phrase):
     return bool(re.search(pat, _normalize(title)))
 
 
-def _nli_hf_relevance(text, game_label, other_label, timeout=20):
-    """Llama a la HF Inference API (zero-shot) con dos hipótesis: el juego buscado
-    vs otro juego. Devuelve (score_game, score_other) o lanza RuntimeError si el
-    servicio no está disponible (sin token, 503 cold-start, 429 cuota, timeout, red).
-
-    El token se lee de HF_API_TOKEN (NUNCA hardcodeado). Sin token la API pública
-    suele funcionar pero con cuota baja; si falla, el llamador cae al determinista.
-    """
+def _nli_hf_zeroshot(text, candidate_labels, timeout=20):
+    """HF Inference API (zero-shot) genérico: devuelve {label: score} o lanza
+    RuntimeError si el servicio no está disponible (sin token, 503 cold-start, 429
+    cuota, timeout, red o formato inesperado). El token se lee de HF_API_TOKEN
+    (NUNCA hardcodeado). Sin token la API pública suele ir con cuota baja; si falla,
+    el llamador cae a su respaldo (determinista en relevancia, reglas en categoría)."""
     token = os.getenv("HF_API_TOKEN")
     headers = {"Authorization": f"Bearer {token}"} if token else {}
     url = _NLI_API_URL.format(model=_NLI_MODEL)
     payload = {
         "inputs": text,
         "parameters": {
-            "candidate_labels": [game_label, other_label],
+            "candidate_labels": list(candidate_labels),
             "hypothesis_template": _NLI_HYP_TEMPLATE,
             "multi_label": False,
         },
@@ -397,7 +422,14 @@ def _nli_hf_relevance(text, game_label, other_label, timeout=20):
     data = r.json()
     if not isinstance(data, dict) or "labels" not in data or "scores" not in data:
         raise RuntimeError(f"NLI respuesta inesperada: {str(data)[:120]}")
-    scores = dict(zip(data["labels"], data["scores"]))
+    return dict(zip(data["labels"], data["scores"]))
+
+
+def _nli_hf_relevance(text, game_label, other_label, timeout=20):
+    """Relevancia: dos hipótesis (juego buscado vs otro). Devuelve
+    (score_game, score_other). Lanza RuntimeError si el servicio no está
+    disponible (ver _nli_hf_zeroshot)."""
+    scores = _nli_hf_zeroshot(text, [game_label, other_label], timeout)
     return scores.get(game_label, 0.0), scores.get(other_label, 0.0)
 
 
@@ -879,16 +911,34 @@ def configure_relevance_from_settings(settings):
             _RISKY_KEYWORDS[k]["confusers"] = [str(c) for c in conf]
 
 
+def configure_category_nli_from_settings(settings):
+    """Aplica la sección 'category_nli' de bot_settings.yaml (NLI de categoría).
+    Entorno > yaml > default. Idempotente. Por defecto DESACTIVADO."""
+    global _CATEGORY_NLI_ENABLED, _CATEGORY_NLI_MARGIN
+    cn = (settings or {}).get("category_nli") or {}
+    if ("CATEGORY_NLI_ENABLED" not in os.environ
+            and cn.get("enabled") is not None):
+        _CATEGORY_NLI_ENABLED = bool(cn.get("enabled"))
+    if ("CATEGORY_NLI_MARGIN" not in os.environ
+            and cn.get("margin") is not None):
+        try:
+            _CATEGORY_NLI_MARGIN = float(cn["margin"])
+        except (TypeError, ValueError):
+            log.warning("category_nli.margin invalido: %s", cn.get("margin"))
+
+
 def configure_from_settings(settings):
     """Aplica la seccion 'llm' de bot_settings.yaml (cascada, modelos, claves,
     cooldown). Una variable de entorno del mismo concepto SIEMPRE manda sobre
     esto (util para GitHub Secrets). Idempotente; la llama main.py al arrancar.
 
-    Tambien aplica la seccion 'relevance' (gate NLI), por comodidad: main.py solo
-    llama a configure_from_settings()."""
+    Tambien aplica las secciones 'relevance' (gate NLI), 'language' (langdetect) y
+    'category_nli' (NLI de categoría), por comodidad: main.py solo llama a
+    configure_from_settings()."""
     global LLM_CASCADE, LLM_PROVIDER, _LLM_COOLDOWN, _BATCH_SIZE
     configure_relevance_from_settings(settings)
     configure_language_from_settings(settings)
+    configure_category_nli_from_settings(settings)
     llm = (settings or {}).get("llm") or {}
 
     if "LLM_CASCADE" not in os.environ and "LLM_PROVIDER" not in os.environ:
@@ -1370,13 +1420,66 @@ def _classify_by_rules(title, description):
     return "base"   # ante la duda, dejar pasar (preferencia del proyecto)
 
 
+def _category_nli(title, description):
+    """Clasifica la categoría por NLI (zero-shot HF) sobre TÍTULO + DESCRIPCIÓN,
+    con la DESCRIPCIÓN como señal principal (ahí se delata 'solo el inserto',
+    'fichas sueltas', 'solo la expansión'...). Devuelve 'base'|'expansion'|
+    'components' por MARGEN (_CATEGORY_NLI_MARGIN), o None si el NLI no está
+    disponible o no es concluyente. Caché en proceso por texto normalizado."""
+    text = f"{title or ''}. {description or ''}".strip()
+    key = _normalize(text)
+    cached = _CATEGORY_NLI_CACHE.get(key)
+    if cached is not None:
+        return cached or None              # "" centinela de indeterminado
+    decision = None
+    try:
+        scores = _nli_hf_zeroshot(text, list(_CATEGORY_NLI_LABELS.values()))
+        ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+        if len(ranked) >= 2 and ranked[0][1] - ranked[1][1] >= _CATEGORY_NLI_MARGIN:
+            decision = _CATEGORY_LABEL_TO_CAT.get(ranked[0][0])
+    except RuntimeError as e:
+        log.info("NLI categoría no disponible (%s); se mantienen las reglas", e)
+    _CATEGORY_NLI_CACHE[key] = decision or ""
+    return decision
+
+
+def _maybe_refine_category_nli(title, description, rules_cat):
+    """VALIDACIÓN opcional por NLI (category_nli.enabled). Las REGLAS son el primer
+    filtro; el NLI valida el caso de riesgo: reglas -> 'base' pero el texto tiene
+    vocabulario de accesorio/expansión y HAY descripción. Solo entonces se gasta una
+    llamada NLI, que puede mover 'base' -> 'components'/'expansion'. Conservador:
+    ante la duda (NLI no disponible o sin margen) deja las reglas; nunca a not_game
+    ni descarta. NO toca lote/not_game ni 'expansion'/'components' ya decididos por
+    reglas (la rama de lotes vive aparte en main.evaluate())."""
+    if not _CATEGORY_NLI_ENABLED or rules_cat != "base":
+        return rules_cat
+    desc = (description or "").strip()
+    if not desc:
+        return rules_cat                   # sin descripción el NLI no aporta
+    # Gateo por vocabulario: solo llamamos al NLI si hay señal de accesorio/
+    # expansión en el texto (si no, las reglas 'base' bastan y ahorramos la llamada).
+    text_norm = _normalize(f"{title} {desc}")
+    if not (any(w in text_norm for w in _COMP_VOCAB)
+            or any(w in text_norm for w in _COMPONENT_HINT_WORDS)
+            or any(w in text_norm for w in _EXPANSION_HINT_WORDS)):
+        return rules_cat
+    nli_cat = _category_nli(title, desc)
+    if nli_cat in ("components", "expansion"):
+        return nli_cat
+    return rules_cat                       # 'base'/indeterminado -> reglas
+
+
 def classify_category(title, description, use_llm=True, model="qwen2.5:3b"):
-    """Clasifica por REGLAS sobre título + descripción (sin LLM). Devuelve
+    """Clasifica la categoría: REGLAS como primer filtro (resultado provisional) y,
+    si category_nli.enabled, el NLI lo VALIDA sobre la descripción (puede corregir
+    'base' -> 'components'/'expansion'). Devuelve
     'base'|'expansion'|'components'|'lote'|'not_game'.
 
-    `use_llm`/`model` se conservan por compatibilidad de firma pero ya no se
-    usan: la cascada LLM quedó retirada (su código sigue en el módulo, inerte)."""
-    return _classify_by_rules(title, strip_tag_spam(description))
+    `use_llm`/`model` se conservan por compatibilidad de firma pero ya no se usan:
+    la cascada LLM quedó retirada (su código sigue en el módulo, inerte)."""
+    desc = strip_tag_spam(description)
+    cat = _classify_by_rules(title, desc)
+    return _maybe_refine_category_nli(title, desc, cat)
 
 
 # ---------------------------------------------------------------------------
