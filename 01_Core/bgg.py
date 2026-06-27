@@ -270,6 +270,93 @@ def lookup(title):
     return result
 
 
+# --- categoría con descripción: expansiones del juego base (S4) ---------------
+# Frases que indican mera COMPATIBILIDAD (el anuncio menciona una expansión pero
+# NO la vende): no deben hacer que un base pase a 'expansion'. Sobre texto
+# normalizado (_cache_key: minúsculas, sin tildes).
+_COMPAT_RE = re.compile(
+    r"compatible|ampliab|se amplia|para ampliar|se puede ampliar|sirve para|"
+    r"junto a|ademas de|tambien tengo|tengo tambien|no incluye")
+
+
+def _fetch_expansions(base_id):
+    """Nombres de las expansiones de un juego base vía thing?id=<id>
+    (links boardgameexpansion). [] ante cualquier fallo."""
+    xml = _get("/thing", {"id": base_id})
+    if not xml:
+        return []
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError as e:
+        log.info("BGG thing XML inválido: %s", e)
+        return []
+    names = []
+    for item in root.findall("item"):
+        for link in item.findall("link"):
+            if link.get("type") == "boardgameexpansion" and link.get("value"):
+                names.append(link.get("value"))
+    return names
+
+
+def _expansions_for_base(base_id):
+    """Expansiones (nombres) del juego base, cacheadas en bgg_cache.json bajo una
+    clave aparte. [] si no hay base_id o BGG falla."""
+    if not base_id:
+        return []
+    cache = _get_cache()
+    ckey = "__exp__:" + str(base_id)
+    hit = cache.get(ckey)
+    if hit is not None:
+        return hit.get("names", [])
+    names = _fetch_expansions(base_id)
+    cache[ckey] = {"names": names, "ts": _today()}
+    _save_cache(cache)
+    return names
+
+
+def _distinctive(name):
+    """Parte DISTINTIVA del nombre de una expansión (lo que la diferencia del base):
+    el trozo tras ':' si lo hay (p.ej. 'Rising Sun: Kami Unbound' -> 'kami unbound'),
+    normalizado. Si no hay ':' devuelve el nombre completo normalizado."""
+    raw = name.split(":", 1)[1] if ":" in name else name
+    return _cache_key(raw)
+
+
+def _expansion_in_text(exp_names, title, description):
+    """True si alguna expansión (su parte distintiva, de >=2 palabras) aparece en
+    el TÍTULO (alta confianza) o en la DESCRIPCIÓN sin contexto de mera
+    compatibilidad. Conservador: nombres distintivos cortos se ignoran."""
+    t = _cache_key(title)
+    d = _cache_key(description)
+    compat = bool(_COMPAT_RE.search(d))
+    for name in exp_names:
+        dist = _distinctive(name)
+        if len(dist) < 6 or len(dist.split()) < 2:
+            continue                      # poco distintivo -> evita falsos positivos
+        if dist in t:
+            return True                   # en el título: alta confianza
+        if dist in d and not compat:
+            return True                   # en la descripción y NO es compatibilidad
+    return False
+
+
+def categorize(title, description=""):
+    """Refuerzo de categoría con BGG. Devuelve 'expansion' si BGG indica que lo
+    que se vende es una expansión —porque el TÍTULO resuelve a expansión, o porque
+    el TÍTULO/DESCRIPCIÓN nombra una expansión CONCRETA del juego base—, o None si
+    BGG no aporta. Conservador (ante la duda, None: no degrada un base válido).
+    NUNCA lanza."""
+    info = lookup(title)
+    if info is None:
+        return None
+    if info.get("kind") == "expansion":
+        return "expansion"
+    names = _expansions_for_base(info.get("bgg_id"))
+    if names and _expansion_in_text(names, title, description):
+        return "expansion"
+    return None
+
+
 def flush():
     """Persiste la caché en disco (por si se prefiere escribir al final de la
     pasada). lookup() ya guarda en cada miss, así que normalmente es redundante."""

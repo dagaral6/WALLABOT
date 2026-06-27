@@ -310,11 +310,13 @@ def _refine_categories_with_bgg(items, cats):
     for i, (it, cat) in enumerate(zip(items, cats)):
         if cat != "base":
             continue
-        info = bgg.lookup(it.get("title", ""))
-        if info and info.get("kind") == "expansion":
+        # BGG con TÍTULO + DESCRIPCIÓN: detecta expansión por el título o porque el
+        # texto nombra una expansión concreta del juego base (S4).
+        bcat = bgg.categorize(it.get("title", ""), it.get("description", ""))
+        if bcat == "expansion":
             out[i] = "expansion"
-            log.info("[BGG] '%s' reclasificado base->expansion (bgg id %s)",
-                     it.get("title", ""), info.get("bgg_id"))
+            log.info("[BGG] '%s' reclasificado base->expansion",
+                     it.get("title", ""))
     return out
 
 

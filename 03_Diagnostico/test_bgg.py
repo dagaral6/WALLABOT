@@ -64,6 +64,24 @@ XML_EXP = (
 )
 XML_EMPTY = '<items total="0"></items>'
 XML_BROKEN = '<items total="1"><item type="boardgame" id="1">'   # sin cerrar
+# Base "Rising Sun" (search) + su thing con links de expansiones (S4).
+XML_BASE_RS = (
+    '<items total="1">'
+    '  <item type="boardgame" id="999">'
+    '    <name type="primary" value="Rising Sun"/>'
+    '  </item>'
+    '</items>'
+)
+XML_THING_RS = (
+    '<items>'
+    '  <item type="boardgame" id="999">'
+    '    <name type="primary" value="Rising Sun"/>'
+    '    <link type="boardgameexpansion" id="1001" value="Rising Sun: Kami Unbound"/>'
+    '    <link type="boardgameexpansion" id="1002" value="Rising Sun: Monster Pack"/>'
+    '    <link type="boardgamecategory" id="1" value="Mythology"/>'
+    '  </item>'
+    '</items>'
+)
 
 
 # --- Mock de red: cola de respuestas, cuenta llamadas ----------------------
@@ -200,42 +218,69 @@ check("_clean_title quita ruido/precio/emoji",
       f"cleaned={cleaned!r}")
 
 
+# --- 7b) categorize: expansión por título o por la DESCRIPCIÓN (S4) ---------
+# base + la descripción nombra una expansión concreta -> expansion
+reset([FakeResp(200, XML_BASE_RS), FakeResp(200, XML_THING_RS)])
+check("categorize: base + desc nombra expansión -> expansion",
+      bgg.categorize("Rising Sun",
+                     "Vendo la expansion Kami Unbound, perfecto estado") == "expansion")
+# base + expansión nombrada en el TÍTULO -> expansion
+reset([FakeResp(200, XML_BASE_RS), FakeResp(200, XML_THING_RS)])
+check("categorize: base + expansión en el título -> expansion",
+      bgg.categorize("Rising Sun Monster Pack", "") == "expansion")
+# base + mención de compatibilidad -> None (no degrada un base válido)
+reset([FakeResp(200, XML_BASE_RS), FakeResp(200, XML_THING_RS)])
+check("categorize: base + 'compatible con Kami Unbound' -> None",
+      bgg.categorize("Rising Sun",
+                     "Juego base completo, compatible con Kami Unbound") is None)
+# base + el texto NO nombra ninguna expansión -> None
+reset([FakeResp(200, XML_BASE_RS), FakeResp(200, XML_THING_RS)])
+check("categorize: base sin expansión en el texto -> None",
+      bgg.categorize("Rising Sun", "Juego base, perfecto estado") is None)
+# el título YA resuelve a expansión -> expansion (sin pedir thing)
+reset([FakeResp(200, XML_EXP)])
+check("categorize: título es expansión -> expansion",
+      bgg.categorize("Rising Sun Kami Unbound", "") == "expansion")
+# BGG no reconoce el título -> None
+reset([FakeResp(200, XML_EMPTY), FakeResp(200, XML_EMPTY)])
+check("categorize: título no reconocido -> None",
+      bgg.categorize("Cosa Inexistente XYZ", "algo") is None)
+
+
 # --- 8) Integracion main._refine_categories_with_bgg -----------------------
 ITEMS = [
-    {"id": "a", "title": "Frostpunk"},
-    {"id": "b", "title": "Rising Sun Kami Unbound"},
-    {"id": "c", "title": "Inserto Frostpunk"},
+    {"id": "a", "title": "Frostpunk", "description": "Juego base completo"},
+    {"id": "b", "title": "Rising Sun", "description": "expansion Kami Unbound"},
+    {"id": "c", "title": "Inserto Frostpunk", "description": "solo el inserto"},
 ]
 CATS = ["base", "base", "components"]
 
-# enabled=false -> identico (no toca nada, ni llama a lookup)
+# enabled=false -> identico (no toca nada, ni llama a categorize)
 bgg._BGG_ENABLED = False
 out = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG off: categorias identicas", out == CATS, f"out={out}")
 
-# enabled=true: lookup mockeado. 'b' es expansion -> base pasa a expansion;
-# 'a' es base (se queda base); 'c' es components (no se toca aunque BGG opine).
-def _fake_lookup(title):
-    if "kami unbound" in title.lower():
-        return {"bgg_id": "205", "name": "Rising Sun: Kami Unbound", "kind": "expansion"}
-    if "frostpunk" in title.lower():
-        return {"bgg_id": "300", "name": "Frostpunk: The Board Game", "kind": "base"}
+# enabled=true: categorize mockeado. 'b' -> expansion; 'a' base se queda; 'c'
+# components no se toca (solo se evalúan los 'base').
+def _fake_categorize(title, description=""):
+    if "rising sun" in title.lower():
+        return "expansion"
     return None
 
-_orig_lookup = bgg.lookup
-bgg.lookup = _fake_lookup
+_orig_categorize = bgg.categorize
+bgg.categorize = _fake_categorize
 bgg._BGG_ENABLED = True
 out = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG on: 'b' base->expansion", out == ["base", "expansion", "components"],
       f"out={out}")
 
-# lookup que no reconoce -> NO degrada (base se queda base)
-bgg.lookup = lambda title: None
+# categorize que no aporta -> NO degrada (base se queda base)
+bgg.categorize = lambda title, description="": None
 out2 = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG on pero sin reconocer -> base intacto (dejar pasar)",
       out2 == CATS, f"out2={out2}")
 
-bgg.lookup = _orig_lookup
+bgg.categorize = _orig_categorize
 bgg._BGG_ENABLED = False
 
 # configure_from_settings respeta el flag del yaml
