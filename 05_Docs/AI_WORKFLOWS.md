@@ -41,7 +41,7 @@
 5. Ante duda, preferir false positive a anuncio perdido.
 6. Mantener el filtro de idioma (`looks_foreign_language`, solo es/ca/en) en `evaluate()` de `main.py`: vocabulario de listas + **langdetect** como señal secundaria sobre la DESCRIPCIÓN (umbral alto, `language.*`; `test_idioma.py`, `diag_idioma.py`).
 
-## Cambio en el gate de relevancia (NLI) o en BGG
+## Cambio en el gate de relevancia (NLI) o en la base de datos de juegos
 
 Gate NLI de relevancia para keywords ambiguas (`_RISKY_KEYWORDS`, `nli_relevance_gate`):
 
@@ -50,11 +50,12 @@ Gate NLI de relevancia para keywords ambiguas (`_RISKY_KEYWORDS`, `nli_relevance
 3. NLI vivo (Hugging Face, secret `HF_API_TOKEN`, `relevance.*` en `bot_settings.yaml`) con **fallback determinista** (confusores + regla de orden). Mantener siempre el fallback: ante la duda, dejar pasar.
 4. Test: `py 03_Diagnostico/test_nli_relevance.py` (sin red; smoke vivo opcional con `HF_API_TOKEN`).
 
-Refuerzo BGG (`bgg.py`, BoardGameGeek XMLAPI2):
+Refuerzo de categoría con base de datos OFFLINE (`gamedb.py`, sustituye a `bgg.py`; BGG XMLAPI2 cerró con 401 en 2025):
 
-1. Módulo AUTÓNOMO (no importa de `classifier`/`main`). `bgg.categorize(título, descripción)` mueve base→expansion por el título o porque la DESCRIPCIÓN nombra una expansión concreta del base (expansiones del base vía `thing`, guarda anti-«compatible» `_COMPAT_RE`). Integración en `main.py:_refine_categories_with_bgg`. Flag `bgg.enabled`.
-2. Degradación elegante: ante red/timeout/202/429/parseo devuelve `None` y sigue como hoy. Caché en `01_Core/bgg_cache.json` (la commitea Actions vía `git add -A 01_Core`); las expansiones del base se cachean bajo `__exp__:<id>`.
-3. Test: `py 03_Diagnostico/test_bgg.py` (fixtures mockeadas; smoke real opcional con `BGG_SMOKE=1`).
+1. Módulo AUTÓNOMO (no importa de `classifier`/`main`), drop-in de `bgg` (misma interfaz `categorize`/`bgg_enabled`/`configure_from_settings`). `categorize(título, descripción)` mueve base→expansion por el título o porque la DESCRIPCIÓN nombra una expansión concreta del base (índice `exp_by_base`, guarda anti-«compatible» `_COMPAT_RE`). Lee `01_Core/gamedb.json` (carga perezosa, sin red). Integración en `main.py:_refine_categories_with_bgg` vía `import gamedb as bgg`. Flag `bgg.enabled`.
+2. Datos: `gamedb.json` se compila con `py 03_Diagnostico/build_gamedb.py` desde `03_Diagnostico/boardgames_ranks_reducido.csv` (TSV id/name/type/traduccion, **encoding cp1252**) y se commitea (viaja con el repo → determinista en Actions, sin token). Regenerar solo al actualizar el CSV.
+3. Degradación elegante: si `gamedb.json` falta o es ilegible, devuelve `None` y el bot sigue por reglas.
+4. Test: `py 03_Diagnostico/test_gamedb.py`. El antiguo `test_bgg.py` sigue cubriendo `bgg.py` (conservado sin uso) y la lógica de integración de `main` (parcheando `main.bgg`, backend-agnóstico).
 
 Validación NLI de categoría (`classifier.py`, `category_nli.*`):
 

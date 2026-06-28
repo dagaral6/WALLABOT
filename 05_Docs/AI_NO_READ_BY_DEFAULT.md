@@ -3,7 +3,9 @@
 No leer salvo petición explícita:
 
 - `alerts.db`
-- `01_Core/bgg_cache.json`: caché generada de BoardGameGeek (se crea/crece sola cuando `bgg.enabled: true`; como `alerts.db`, no aporta como lectura)
+- `01_Core/gamedb.json`: base de datos OFFLINE de juegos (~5 MB, generada por `03_Diagnostico/build_gamedb.py`; archivo grande, no aporta como lectura — editar el builder, no el JSON)
+- `03_Diagnostico/boardgames_ranks_reducido.csv`: dump CSV fuente de `gamedb.json` (~178k filas; no abrir entero, ver `build_gamedb.py`)
+- `01_Core/bgg_cache.json`: caché del antiguo módulo `bgg.py` (en desuso desde la migración a `gamedb.py`; como `alerts.db`, no aporta como lectura)
 - `04_Logs/`
 - `06_Backups/`
 - `99_Obsoletos/`

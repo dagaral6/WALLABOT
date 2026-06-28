@@ -16,7 +16,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 - `main.py`: orquesta ciclos, sueño nocturno, multi-config, novedades, bajas, bajadas de precio y notificaciones.
 - `scraper.py`: API Wallapop + paginación.
 - `classifier.py`: clasificación por **reglas** deterministas (base/expansión/componentes/lote/no-juego) + dos usos del **NLI VIVO** (Hugging Face zero-shot, mismo motor `_nli_hf_zeroshot`, secret `HF_API_TOKEN`): **gate de relevancia** (`relevance.*`) para keywords ambiguas y **validación de categoría OPCIONAL** (`category_nli.*`) que, sobre la descripción, corrige `base`→`expansión`/`componentes` (las reglas siguen siendo el primer filtro). La cascada LLM cloud + circuit breaker + clasificación por lotes (`batch_size`) sigue en el código pero **inerte** (retirada).
-- `bgg.py`: refuerzo OPCIONAL con BoardGameGeek (XMLAPI2). `bgg.categorize(título, descripción)` confirma si es un juego real y detecta expansión por el título o porque la **descripción** nombra una expansión concreta del juego base (expansiones del base vía `thing`, con guarda anti-«compatible»); caché persistente en `bgg_cache.json`, degradación elegante. Reversible (`bgg.enabled` en `bot_settings.yaml`).
+- `gamedb.py`: refuerzo OPCIONAL de categoría con una base de datos **OFFLINE** de juegos (`01_Core/gamedb.json`, compilada por `03_Diagnostico/build_gamedb.py` desde un dump CSV). Sustituye a `bgg.py` (la XMLAPI2 de BoardGameGeek cerró el acceso anónimo, 401, en 2025). `gamedb.categorize(título, descripción)` identifica el juego del título (índice de nombres inglés + traducción) y detecta **expansión** por el propio título o porque la **descripción** nombra una expansión concreta del juego base (guarda anti-«compatible»). Sin red ni token → determinista en GitHub Actions; degradación elegante. Reversible (`bgg.enabled` en `bot_settings.yaml`; se lee por compatibilidad). `main.py` lo importa como `import gamedb as bgg`. `bgg.py` se conserva en el repo sin uso.
 - `database.py`: SQLite `alerts.db`. Guarda histórico de alertas eliminadas sin borrar filas (`deleted_reason`/`deleted_at`, `mark_alert_deleted()`).
 - `notifier.py`: emails Gmail.
 - `config_inbox.py`: lee configs por correo (crear/añadir/borrar; el borrado lleva un motivo por alerta y marca el histórico en la BD).
@@ -40,7 +40,7 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 
 ## Validaciones
 
-- Backend: tests de `03_Diagnostico/` (p.ej. `test_batch.py`, `test_nli_relevance.py`, `test_bgg.py`, `test_idioma.py`, `test_category_nli.py`). Sin red (NLI/BGG mockeados).
+- Backend: tests de `03_Diagnostico/` (p.ej. `test_batch.py`, `test_nli_relevance.py`, `test_bgg.py`, `test_gamedb.py`, `test_idioma.py`, `test_category_nli.py`). Sin red (NLI mockeado; `gamedb` es offline).
 - Config inbox: `python3 config_inbox.py --dry-run`.
 - Ciclo manual: `python3 main.py --once --force`.
 - Usuarios: `python3 manage.py list`.

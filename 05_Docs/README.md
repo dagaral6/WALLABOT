@@ -347,16 +347,19 @@ Con independencia de ese gate, la coincidencia de título (`title_matches`) exig
 huecos): "rising sun" no acepta "sun rising", pero "estaciones inis" sigue
 casando con "Las Estaciones de Inis".
 
-### Refuerzo opcional con BoardGameGeek (BGG)
-`bgg.py` puede consultar BoardGameGeek (XMLAPI2) como "diccionario que se mantiene
-solo". `categorize(título, descripción)` confirma si un título es un juego real y
-detecta **expansión** de dos formas: por el propio título, o porque la
-**descripción** nombra una expansión concreta del juego base (BGG lista las
-expansiones de cada base; una guarda evita el falso positivo de los anuncios que
-solo mencionan que algo es "compatible con…"). Es **refuerzo, no autoridad** (si
-BGG no reconoce un título, no se descarta) y reversible (`bgg.enabled`). Cachea en
-`bgg_cache.json` y degrada con elegancia si BGG falla. Limitación: los nombres de
-BGG están en inglés, así que las descripciones en español casan pocas veces.
+### Refuerzo opcional con base de datos OFFLINE de juegos
+`gamedb.py` consulta una base de datos **offline** de juegos de mesa
+(`01_Core/gamedb.json`, ~5 MB, compilada por `03_Diagnostico/build_gamedb.py`
+desde un dump CSV). Sustituye a la antigua consulta viva a BoardGameGeek (`bgg.py`,
+XMLAPI2), que cerró el acceso anónimo (401) en 2025. `categorize(título,
+descripción)` identifica el juego del título (índice de nombres en inglés y su
+traducción) y detecta **expansión** de dos formas: por el propio título, o porque
+la **descripción** nombra una expansión concreta del juego base (una guarda evita
+el falso positivo de los anuncios que solo mencionan que algo es "compatible
+con…"). Es **refuerzo, no autoridad** (si no reconoce un título, no se descarta) y
+reversible (`bgg.enabled`). Al ser offline es **determinista y funciona en GitHub
+Actions sin red ni token**. Regenerar tras actualizar el CSV: `py
+03_Diagnostico/build_gamedb.py`.
 
 ### Idioma: solo español, catalán o inglés
 `looks_foreign_language` descarta anuncios en otros idiomas (italiano, alemán…)
@@ -419,8 +422,9 @@ los usuarios.
 **En producción, activo por defecto:** el **gate de relevancia por NLI** para
 keywords ambiguas (`relevance.enabled: true`).
 
-**Implementado y reversible (flag en `bot_settings.yaml`):** el **refuerzo BGG**
-(`bgg.enabled`), la **detección de idioma con langdetect** (`language.langdetect_enabled`) y
+**Implementado y reversible (flag en `bot_settings.yaml`):** el **refuerzo de
+categoría con la base de datos offline de juegos** (`bgg.enabled`, `gamedb.py`), la
+**detección de idioma con langdetect** (`language.langdetect_enabled`) y
 la **validación de categoría por NLI** (`category_nli.enabled`) — esta última NO
 reemplaza las reglas, solo corrige `base`→`componentes`/`expansión` sobre la
 descripción. Actívalos a conciencia (consumen cuota de Hugging Face / red).
