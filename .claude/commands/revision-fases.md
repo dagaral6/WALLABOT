@@ -1,21 +1,23 @@
-Trabaja en modo revisión estratégica por fases, con interacción obligatoria con el usuario.
+Trabaja en modo revisión interactiva del proyecto por fases.
 
 Objetivo:
 $ARGUMENTS
 
 ## Propósito del comando
 
-Este comando sirve para revisar el estado actual del proyecto, detectar áreas de mejora y dividir el trabajo en fases ordenadas.
+Este comando sirve para revisar el proyecto en su estado actual, dividirlo en fases funcionales o técnicas, explicar cómo funciona cada fase y recoger feedback del usuario.
 
-No implementes cambios directamente.
+No implementes cambios durante esta revisión.
 
 Tu misión es:
 
 1. Auditar el estado actual del proyecto con contexto mínimo.
-2. Identificar problemas, riesgos, deuda técnica y oportunidades de mejora.
-3. Dividir el trabajo en fases lógicas y ordenadas.
-4. Presentar una fase cada vez.
-5. Esperar respuesta del usuario antes de avanzar a la siguiente fase o proponer implementación.
+2. Decidir tú las fases principales del proyecto.
+3. Revisar una fase cada vez.
+4. Explicar de forma clara cómo funciona esa fase actualmente.
+5. Preguntar al usuario si valida el estado actual o quiere cambios.
+6. Guardar el feedback del usuario durante la conversación.
+7. Al terminar todas las fases, entregar un plan estructurado para aplicar los cambios solicitados.
 
 ---
 
@@ -23,7 +25,7 @@ Tu misión es:
 
 Aunque la revisión sea global, no leas el repositorio completo.
 
-Haz una revisión estratégica y eficiente:
+Haz una revisión eficiente:
 
 * Usa `git status`.
 * Usa `git diff --stat` si hay cambios pendientes.
@@ -34,17 +36,18 @@ Haz una revisión estratégica y eficiente:
   * `05_Docs/AI_BRIEF.md`
   * `05_Docs/AI_WORKFLOWS.md`
   * `05_Docs/AI_NO_READ_BY_DEFAULT.md`
-* Lee `README.md` o `CONTEXT.md` solo si hace falta para entender arquitectura, instalación o decisiones históricas.
+* Lee `README.md` o `CONTEXT.md` solo si es necesario para entender arquitectura, instalación o decisiones históricas.
 * No abras logs, backups, obsoletos, bases de datos, binarios ni archivos grandes salvo petición explícita.
 
 ---
 
 ## Restricciones
 
+* No implementes cambios.
+* No edites archivos.
 * No hagas commit.
 * No hagas push.
 * No cambies de rama.
-* No edites archivos salvo que el usuario lo pida explícitamente después.
 * No modifiques secretos, tokens, passwords ni credenciales.
 * Si encuentras credenciales, avisa sin reproducirlas.
 * No conviertas la revisión en una lectura masiva del repo.
@@ -54,7 +57,7 @@ Haz una revisión estratégica y eficiente:
 
 ## Fase 0 — Auditoría inicial
 
-Antes de proponer fases, revisa el estado real del proyecto.
+Antes de dividir el proyecto en fases, revisa el estado real.
 
 Ejecuta o inspecciona, si procede:
 
@@ -69,7 +72,8 @@ Después localiza estructura y componentes relevantes con búsquedas dirigidas.
 Determina:
 
 * Qué partes principales tiene el proyecto.
-* Qué áreas parecen críticas.
+* Qué flujos funcionales existen.
+* Qué módulos parecen críticos.
 * Qué tests o diagnósticos existen.
 * Qué documentación parece fuente de verdad.
 * Qué zonas no deben tocarse por defecto.
@@ -80,236 +84,296 @@ Entrega una auditoría breve de 5-12 líneas.
 
 ---
 
-## Fase 1 — Mapa del proyecto
+## Fase 1 — División del proyecto en fases
 
-Crea un mapa breve del estado actual.
+Después de la auditoría inicial, divide tú el proyecto en fases lógicas.
 
-Formato:
+Las fases deben representar partes funcionales o técnicas del proyecto, no tareas de implementación.
 
-```markdown
-## Mapa actual del proyecto
+Ejemplos de fases posibles:
 
-### Componentes principales
+* Ingesta / scraping de anuncios.
+* Clasificación de anuncios.
+* LLM cascade / proveedores externos.
+* Persistencia en base de datos.
+* Gestión de usuarios/configs.
+* Notificaciones.
+* Configurador HTML.
+* GitHub Actions / ejecución programada.
+* Tests y diagnóstico.
+* Documentación y mantenimiento.
 
-- `ruta/`: función.
-
-### Flujos importantes
-
-- Flujo 1.
-- Flujo 2.
-
-### Tests / diagnósticos existentes
-
-- `ruta/test`: qué cubre.
-
-### Documentación relevante
-
-- `ruta/documento`: para qué sirve.
-
-### Riesgos visibles
-
-- Riesgo 1.
-- Riesgo 2.
-```
-
-No entres aún en soluciones detalladas.
-
----
-
-## Fase 2 — Propuesta de fases
-
-Divide el trabajo en fases ordenadas.
-
-Cada fase debe ser concreta, revisable y accionable.
+Adapta las fases al estado real del repo.
 
 Formato:
 
 ```markdown
-## Plan propuesto por fases
+## Fases detectadas
 
 ### Fase 1 — Nombre de la fase
 
-**Objetivo:**  
-Qué se quiere conseguir.
+**Qué cubre:**  
+Descripción breve.
 
-**Motivo:**  
-Por qué esta fase va primero.
-
-**Archivos o áreas probables:**  
+**Archivos/áreas probables:**  
 - `ruta/archivo_o_carpeta`
 
-**Cambios esperados:**  
-- Cambio 1.
-- Cambio 2.
+**Por qué es una fase independiente:**  
+Motivo.
 
-**Validación:**  
-- Tests, comandos o comprobaciones.
+### Fase 2 — Nombre de la fase
 
-**Riesgos:**  
-- Riesgo 1.
-
-**Resultado esperado:**  
-Qué debería quedar terminado al cerrar esta fase.
+...
 ```
 
-Ordena las fases por:
-
-1. Seguridad y estado del repo.
-2. Corrección de bugs críticos.
-3. Estabilidad de tests.
-4. Arquitectura base.
-5. Funcionalidades nuevas.
-6. Optimización.
-7. Documentación.
-8. Limpieza.
-
----
-
-## Interacción obligatoria
-
-Después de presentar el plan por fases, no sigas trabajando automáticamente.
-
-Pregunta al usuario:
+Después de mostrar las fases detectadas, pregunta:
 
 ```text
-¿Te parece bien este orden de fases?
+¿Te parece bien esta división de fases?
 
-Responde con una de estas opciones:
-1. aprobar
-2. cambiar orden
-3. modificar una fase
-4. añadir una fase
-5. eliminar una fase
-6. profundizar en una fase concreta
+Puedes responder:
+- "aprobar"
+- "cambiar orden"
+- "añadir fase ..."
+- "eliminar fase ..."
+- "renombrar fase ..."
+- "unir fases ..."
+- "dividir fase ..."
 ```
 
-Espera respuesta.
+No empieces a revisar fase por fase hasta que el usuario apruebe o ajuste la división.
 
 ---
 
-## Trabajo fase por fase
+## Revisión fase por fase
 
-Cuando el usuario apruebe el plan o una fase concreta, trabaja solo sobre esa fase.
+Una vez aprobada la división, revisa una fase cada vez.
 
 Para cada fase:
 
-1. Reexplica el objetivo de la fase.
-2. Localiza archivos relevantes.
-3. Propón microplan.
-4. Pregunta si el usuario lo aprueba.
-5. Solo implementa si el usuario lo pide explícitamente.
-6. Valida.
-7. Resume resultado.
-8. Pregunta si avanzar a la siguiente fase.
+1. Localiza los archivos relevantes con búsquedas dirigidas.
+2. Lee solo los archivos necesarios.
+3. Explica cómo funciona actualmente.
+4. Identifica puntos fuertes.
+5. Identifica riesgos, deuda técnica o posibles mejoras.
+6. Pregunta al usuario si valida el estado actual o quiere cambios.
+7. Registra el feedback antes de avanzar a la siguiente fase.
 
-Formato al cerrar cada fase:
+No implementes nada.
+
+---
+
+## Formato obligatorio para cada fase
+
+Usa este formato:
 
 ```markdown
-## Cierre de fase
+## Revisión de fase X — Nombre de la fase
 
-### Fase completada
+### Qué cubre esta fase
 
-- Nombre de la fase.
+- Explicación breve de qué parte del proyecto representa.
 
-### Qué se ha revisado
+### Cómo funciona actualmente
 
-- Punto 1.
-- Punto 2.
+- Resumen claro del flujo actual.
+- Componentes principales.
+- Dependencias relevantes.
+- Entradas y salidas de esta fase.
 
-### Qué se ha cambiado
+### Archivos revisados
 
-- Nada, si solo era revisión.
-- O lista de cambios si el usuario pidió implementación.
+- `ruta/archivo`: motivo de revisión.
 
-### Validación
+### Estado actual
 
-- Comandos ejecutados.
-- Resultado.
+- Qué parece estar bien.
+- Qué parece frágil.
+- Qué parece incompleto o mejorable.
 
-### Riesgos pendientes
+### Riesgos o deuda técnica
 
 - Riesgo 1.
+- Riesgo 2.
 
-### Decisión necesaria
+### Posibles mejoras detectadas
 
-¿Avanzamos a la siguiente fase, ajustamos esta fase o paramos aquí?
+- Mejora 1.
+- Mejora 2.
+
+### Pregunta interactiva
+
+¿Validas el estado actual de esta fase o quieres introducir cambios?
+
+Puedes responder:
+- "validado"
+- "quiero cambiar ..."
+- "añade mejora ..."
+- "elimina mejora ..."
+- "profundiza en ..."
+- "marca esto como prioridad alta/media/baja"
+```
+
+Después de hacer la pregunta, espera la respuesta del usuario.
+
+No avances a la siguiente fase hasta recibir respuesta.
+
+---
+
+## Gestión del feedback del usuario
+
+Cuando el usuario dé feedback sobre una fase:
+
+1. Resume lo que ha pedido.
+2. Añádelo al registro acumulado de cambios solicitados.
+3. Clasifícalo por:
+
+   * fase afectada
+   * tipo de cambio
+   * prioridad si el usuario la indica
+   * riesgo estimado
+   * archivos probables
+4. Pregunta si puede avanzar a la siguiente fase.
+
+Formato del registro:
+
+```markdown
+## Registro acumulado de cambios solicitados
+
+### Fase X — Nombre de la fase
+
+- **Cambio solicitado:** ...
+- **Motivo:** ...
+- **Prioridad:** alta/media/baja/no indicada.
+- **Riesgo estimado:** bajo/medio/alto.
+- **Archivos probables:** `ruta/archivo`, `ruta/carpeta`.
+```
+
+Si el usuario valida la fase sin cambios, registra:
+
+```markdown
+### Fase X — Nombre de la fase
+
+- Estado validado por el usuario.
+- Sin cambios solicitados.
 ```
 
 ---
 
-## Modo de respuesta del usuario
+## Avance entre fases
 
-Cuando preguntes al usuario, ofrece opciones claras:
+Después de registrar la decisión del usuario, pregunta:
 
 ```text
+¿Avanzo a la siguiente fase?
+
 Puedes responder:
-- "aprobar"
-- "ajusta la fase X"
-- "añade una fase para ..."
-- "profundiza en la fase X"
-- "implementa la fase X"
-- "paramos aquí"
+- "sí"
+- "no"
+- "vuelve a la fase anterior"
+- "profundiza antes de avanzar"
+- "terminar revisión y generar plan"
 ```
 
-No avances a otra fase si el usuario no lo ha aprobado.
+Solo avanza si el usuario responde afirmativamente o pide continuar.
 
 ---
 
-## Impacto en documentación
+## Finalización de la revisión
 
-En cada fase, evalúa si hay documentación afectada.
+Cuando se hayan revisado todas las fases, o cuando el usuario pida terminar, genera un plan estructurado para aplicar los cambios solicitados.
 
-Incluye siempre:
+No implementes todavía.
 
-```markdown
-## Impacto en documentación
+El plan final debe ordenar los cambios por:
 
-- ¿Requiere actualizar documentación? Sí/No.
-- Si sí, documentación afectada:
-  - `ruta/documento`: motivo.
-- Si no, motivo por el que no aplica.
-```
+1. Riesgo.
+2. Dependencias entre fases.
+3. Impacto funcional.
+4. Facilidad de validación.
+5. Prioridad indicada por el usuario.
 
 ---
 
-## Formato final de la revisión inicial
-
-La primera respuesta de este comando debe terminar con:
+## Formato obligatorio del plan final
 
 ```markdown
-## Siguiente decisión
+# Plan estructurado de cambios
 
-¿Te parece bien este plan por fases?
+## Resumen ejecutivo
 
-Opciones:
-1. aprobar
-2. cambiar orden
-3. modificar una fase
-4. añadir una fase
-5. eliminar una fase
-6. profundizar en una fase concreta
+- Estado general del proyecto.
+- Número de fases revisadas.
+- Número de fases validadas sin cambios.
+- Número de fases con cambios solicitados.
+- Riesgos principales.
+
+## Cambios solicitados por fase
+
+### Fase X — Nombre de la fase
+
+- **Cambio:** ...
+- **Motivo:** ...
+- **Prioridad:** alta/media/baja.
+- **Riesgo:** bajo/medio/alto.
+- **Archivos probables:** ...
+- **Validación necesaria:** ...
+
+## Orden recomendado de implementación
+
+### Bloque 1 — Cambios seguros / preparatorios
+
+- Cambio 1.
+- Cambio 2.
+
+### Bloque 2 — Cambios funcionales principales
+
+- Cambio 1.
+- Cambio 2.
+
+### Bloque 3 — Tests, documentación y limpieza
+
+- Cambio 1.
+- Cambio 2.
+
+## Plan de validación
+
+- Tests o diagnósticos a ejecutar.
+- Comprobaciones manuales.
+- Riesgos que deben revisarse antes de commit.
+
+## Documentación afectada
+
+- `ruta/documento`: motivo.
+- O "No se detecta documentación afectada".
+
+## Siguiente paso recomendado
+
+- Comando sugerido para implementar el primer bloque.
 ```
 
 ---
 
 ## Regla de eficiencia
 
-No intentes “entender todo el proyecto” leyendo todo.
+No intentes entender todo el proyecto leyendo todo.
 
 Haz esto:
 
 ```text
-mapear → detectar áreas → priorizar → dividir fases → pedir aprobación
+mapear → dividir fases → revisar fase actual → preguntar → registrar feedback → avanzar → generar plan final
 ```
 
 No hagas esto:
 
 ```text
-leer todo → resumir todo → proponer cambios enormes
+leer todo → resumir todo → proponer implementación inmediata
 ```
 
 ---
 
 ## Prioridad máxima
 
-Mantener una revisión ordenada, interactiva y eficiente en tokens, sin implementar nada hasta que el usuario apruebe una fase concreta.
+La prioridad es crear una revisión guiada e interactiva del proyecto, fase por fase, acumulando feedback del usuario y terminando con un plan claro de implementación.
+
+No implementes nada hasta que el usuario lo pida explícitamente después de recibir el plan final.
