@@ -270,8 +270,12 @@ ITEMS = [
 ]
 CATS = ["base", "base", "components"]
 
+# NOTA: main usa el backend a través de `main.bgg` (hoy 01_Core/gamedb.py, base de
+# datos OFFLINE; antes bgg.py). Esta sección prueba la LÓGICA de integración de
+# main, independiente del backend, parcheando `main.bgg.*` (no el módulo bgg).
+
 # enabled=false -> identico (no toca nada, ni llama a categorize)
-bgg._BGG_ENABLED = False
+main.bgg.configure_from_settings({"bgg": {"enabled": False}})
 out = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG off: categorias identicas", out == CATS, f"out={out}")
 
@@ -282,27 +286,27 @@ def _fake_categorize(title, description=""):
         return "expansion"
     return None
 
-_orig_categorize = bgg.categorize
-bgg.categorize = _fake_categorize
-bgg._BGG_ENABLED = True
+_orig_categorize = main.bgg.categorize
+main.bgg.categorize = _fake_categorize
+main.bgg.configure_from_settings({"bgg": {"enabled": True}})
 out = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG on: 'b' base->expansion", out == ["base", "expansion", "components"],
       f"out={out}")
 
 # categorize que no aporta -> NO degrada (base se queda base)
-bgg.categorize = lambda title, description="": None
+main.bgg.categorize = lambda title, description="": None
 out2 = main._refine_categories_with_bgg(ITEMS, CATS)
 check("BGG on pero sin reconocer -> base intacto (dejar pasar)",
       out2 == CATS, f"out2={out2}")
 
-bgg.categorize = _orig_categorize
-bgg._BGG_ENABLED = False
+main.bgg.categorize = _orig_categorize
+main.bgg.configure_from_settings({"bgg": {"enabled": False}})
 
-# configure_from_settings respeta el flag del yaml
-bgg.configure_from_settings({"bgg": {"enabled": True}})
-check("configure_from_settings(enabled:true)", bgg.bgg_enabled() is True)
-bgg.configure_from_settings({"bgg": {"enabled": False}})
-check("configure_from_settings(enabled:false)", bgg.bgg_enabled() is False)
+# configure_from_settings respeta el flag del yaml (sobre el backend real de main)
+main.bgg.configure_from_settings({"bgg": {"enabled": True}})
+check("configure_from_settings(enabled:true)", main.bgg.bgg_enabled() is True)
+main.bgg.configure_from_settings({"bgg": {"enabled": False}})
+check("configure_from_settings(enabled:false)", main.bgg.bgg_enabled() is False)
 
 
 # --- 9) Smoke real opcional (no afecta al exit code) -----------------------

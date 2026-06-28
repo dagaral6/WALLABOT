@@ -40,7 +40,7 @@ import scraper
 import database
 import notifier
 import classifier
-import bgg
+import gamedb as bgg   # base de datos OFFLINE de juegos (sustituye a BGG/XMLAPI2, cerrada 401)
 import config_inbox
 
 logging.basicConfig(
