@@ -28,6 +28,7 @@ import json
 import time
 import logging
 import functools
+import unicodedata
 import requests
 
 try:
@@ -64,7 +65,11 @@ _STOPWORDS = {"de", "la", "el", "los", "las", "y", "juego", "mesa",
 def _normalize(text):
     if not text:
         return ""
-    text = text.lower()
+    # NFC: recompone caracteres descompuestos (p.ej. 'n'+tilde combinante -> 'ñ').
+    # Sin esto, una 'ñ'/'ó' en forma NFD se parte y rompe el matching ('borgoña'
+    # -> 'borgon'+'a'). Solo unifica representaciones equivalentes; no elimina las
+    # marcas de otros idiomas (è, ç, ü...) que esta normalizacion conserva aposta.
+    text = unicodedata.normalize("NFC", text).lower()
     for a, b in (("á", "a"), ("é", "e"), ("í", "i"),
                  ("ó", "o"), ("ú", "u"), ("ñ", "n")):
         text = text.replace(a, b)
@@ -286,7 +291,9 @@ _RISKY_KEYWORDS = {
         "game": "Cities, el juego de mesa de negociación de Devir",
         "confusers": ["lost cities", "underwater cities",
                       "between two cities", "cities of sigmar",
-                      "cities skylines"],
+                      "cities sigmar",          # variante sin 'of' (Warhammer)
+                      "cities skylines",
+                      "7 wonders", "7wonders"],  # 'Cities' es expansion de 7 Wonders
     },
     # Multi-palabra (frase): "rising sun" cuela otros productos que llevan esas
     # dos palabras ("Setting Sun Rising", dardos "Rising Sun"...). A propósito SIN
@@ -748,14 +755,22 @@ _WEAK_ZIPF_THRESHOLD = 4.0
 
 
 @functools.lru_cache(maxsize=4096)
+def _word_freq(word):
+    """Frecuencia zipf (0..7) de la palabra ORIGINAL (con tildes), como max entre
+    es/en. None si no hay wordfreq. Base comun de is_weak y del desempate de
+    especificidad en title_matches."""
+    if zipf_frequency is None or not word:
+        return None
+    return max(zipf_frequency(word, "es"), zipf_frequency(word, "en"))
+
+
+@functools.lru_cache(maxsize=4096)
 def is_weak(word):
     """True si `word` es comun/ambigua (no basta por si sola para confirmar el
     juego buscado). Se evalua sobre la palabra ORIGINAL (con tildes), porque
     wordfreq no conoce las formas sin tilde. Sin wordfreq -> nunca debil."""
-    if zipf_frequency is None or not word:
-        return False
-    return max(zipf_frequency(word, "es"),
-               zipf_frequency(word, "en")) >= _WEAK_ZIPF_THRESHOLD
+    z = _word_freq(word)
+    return z is not None and z >= _WEAK_ZIPF_THRESHOLD
 
 
 def _keyword_in_order(kw_norms, title_words):
@@ -811,6 +826,18 @@ def title_matches(target, title):
     if not _keyword_in_order([norm for _, norm in pairs], title_words):
         return False                      # palabras presentes pero en otro orden
     if any(not is_weak(orig) for orig, norm in matched):
+        # ESPECIFICIDAD (multi-palabra): una UNICA palabra fuerte no basta si es la
+        # CABECERA GENERICA del termino (la mas comun) y quedan palabras MAS
+        # distintivas sin coincidir. Asi 'castillos' de 'castillos burgundy borgoña'
+        # NO cuela 'Castillos de Arena' (otro juego), pero 'inis' de 'estaciones
+        # inis' sigue bastando (es la distintiva, no la generica). Sin wordfreq no
+        # se aplica (todas las palabras se tratan como fuertes -> compat).
+        if len(pairs) > 1 and len(matched) == 1:
+            z = _word_freq(matched[0][0])
+            if z is not None:
+                others = [o for o, n in pairs if n != matched[0][1]]
+                if any((_word_freq(o) or 0.0) < z for o in others):
+                    return False          # solo coincide la palabra mas comun
         return True                       # coincide una palabra distintiva
     if len(pairs) == 1:
         return True                       # termino de 1 palabra: no hay opcion
@@ -1367,6 +1394,7 @@ _NOT_GAME_VOCAB = (
     "disco", "cuadro", "escultura", "pintura", "poster", "cartel", "reloj",
     "cronografo", "gemelos", "insignia", "seguros", "seguro", "poliza",
     "polizas", "carcasa", "pesca", "telescopica", "barco", "yachting",
+    "dardos", "diana",   # set de dardos 'Rising Sun' (producto deportivo, no juego)
 )
 
 # Accesorios/piezas sueltas -> 'components' (no el juego completo).
@@ -1409,6 +1437,52 @@ def _rule_expansion_by_title(title):
     return "expansion"
 
 
+# Frases INEQUÍVOCAS en la DESCRIPCIÓN de que SOLO se vende un accesorio o la
+# caja, SIN el juego (el título suele ser solo el nombre del juego). Buscadas en
+# texto normalizado. Deliberadamente específicas para no degradar un base que
+# mencione un extra de pasada ("incluye organizador"): exigen "solo/no incluye/
+# para el juego/encaja en el juego/cajas vacías", no la mera palabra del accesorio.
+_COMPONENTS_ONLY_DESC = (
+    "no incluye el juego", "no incluye juego", "no incluye la base",
+    "sin el juego base", "sin la base", "no incluye ningun juego",
+    "solo las cajas", "solo cajas",   # singular "solo la caja" se omite (ambiguo)
+    "caja vacia", "cajas vacias", "solo el inserto", "solo los insertos",
+    "solo insertos", "solo el organizador", "solo organizador",
+    "solo las fundas", "solo fundas", "solo cartas", "solo el tablero",
+    "solo manual", "solo instrucciones",
+    "organizador de", "organizador para", "inserto para", "insertos para",
+    "fundas para", "encaja en el juego", "encajan en el juego",
+    "encaja perfecto en el juego", "encajan perfecto en el juego",
+)
+
+
+# Subconjunto DURO: frases tan decisivas ("no se vende el juego") que prevalecen
+# incluso si el texto menciona "juego de mesa" (p.ej. "cajas de juego de mesa X,
+# NO INCLUYE JUEGO"). El resto (soft) solo aplica si NO hay señal de juego completo.
+# OJO: "solo la caja" (singular) se EXCLUYE a propósito: es ambiguo ("solo la
+# caja TIENE desgaste" describe un base completo). El plural "solo las cajas" sí
+# es inequívoco de que se venden cajas.
+_COMPONENTS_ONLY_HARD = (
+    "no incluye el juego", "no incluye juego", "no incluye nada",
+    "no incluye ningun juego", "solo las cajas", "solo cajas",
+    "caja vacia", "cajas vacias",
+)
+
+
+def _components_only_in_desc(description):
+    """True si la DESCRIPCIÓN delata, por frase inequívoca, que SOLO se vende un
+    accesorio/caja sin el juego (ver _COMPONENTS_ONLY_DESC)."""
+    d = _normalize(description)
+    return any(p in d for p in _COMPONENTS_ONLY_DESC)
+
+
+def _components_hard_in_desc(description):
+    """True si la DESCRIPCIÓN contiene una frase DURA de 'no se vende el juego'
+    (prevalece sobre la señal de 'juego de mesa'); ver _COMPONENTS_ONLY_HARD."""
+    d = _normalize(description)
+    return any(p in d for p in _COMPONENTS_ONLY_HARD)
+
+
 def _classify_by_rules(title, description):
     """Decide la categoría por reglas (título + descripción). Asume que el
     título YA coincide con el juego buscado (la relevancia la filtra
@@ -1426,6 +1500,15 @@ def _classify_by_rules(title, description):
             or " e inserto" in t or " con inserto" in t
             or " con funda" in t or " con fundas" in t)
         if not is_base_with_extra:
+            return "components"
+    # Componentes delatados por la DESCRIPCIÓN (no por el título): frase
+    # inequívoca de "solo accesorio / no incluye juego". Las frases DURAS ("no
+    # incluye juego", "solo las cajas") prevalecen aunque el texto diga "juego de
+    # mesa"; las soft solo si NO hay señal de juego completo. Siempre con la guarda
+    # de que el título no sea claramente un base (ahí prevalece 'base').
+    if not strong_base_signal(title, description):
+        if (_components_hard_in_desc(description)
+                or (not is_game_signal and _components_only_in_desc(description))):
             return "components"
     # Atajo a base (título claramente base y no es lote).
     if (not any(w in t for w in _LOTE_WORDS)
