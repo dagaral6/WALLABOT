@@ -1,30 +1,104 @@
-# Config de 'marc' aplicada automaticamente desde el buzon.
-# Remitente: marcferrando01@gmail.com | Nombre en el formulario: Marc
-# Aplicada: 2026-07-05 21:01:31
+# Config de 'marc' actualizada automaticamente (alertas agregadas).
+# 2026-07-05 22:00:48 | Nuevas: Catan Ciudades y Caballeros, Seti, Terraforming Mars, Carcassonne, Everdell, Vantage, Brass, Camel Up, 7 wonders, Alta tensión
 
 email:
   smtp_host: smtp.gmail.com
   smtp_port: 587
-  sender: "wallabot01@gmail.com"
-  recipient: "marcferrando01@gmail.com"
-
+  sender: wallabot01@gmail.com
+  recipient: marcferrando01@gmail.com
 location:
   latitude: 39.4699
   longitude: -0.3763
   radius_km: 25
-
 delivery:
   in_person: true
   shipping: true
-
 use_ai: true
-
 alerts:
-  - name: "FrostPunk"
-    keywords: "frostpunk"
-    max_price: 100
-    min_price: 20
-    want: ["base", "lote"]
-    exclude: ["ps5", "videojuego", "ps4", "xbox"]
-
+- name: FrostPunk
+  keywords: frostpunk
+  max_price: 100
+  min_price: 20
+  want:
+  - base
+  - lote
+  exclude:
+  - ps5
+  - videojuego
+  - ps4
+  - xbox
+- name: Catan Ciudades y Caballeros
+  keywords: catan, ciudades y caballeros
+  max_price: 30
+  min_price: 5
+  want:
+  - lote
+  - expansion
+- name: Seti
+  keywords: seti
+  max_price: 60
+  min_price: 10
+  want:
+  - base
+  - lote
+- name: Terraforming Mars
+  keywords: terraforming mars
+  max_price: 45
+  min_price: 10
+  want:
+  - base
+  - lote
+  exclude:
+  - Dados
+- name: Carcassonne
+  keywords: carcassonne
+  max_price: 15
+  min_price: 0
+  want:
+  - base
+  - lote
+- name: Everdell
+  keywords: everdell
+  max_price: 30
+  min_price: 10
+  want:
+  - base
+  - lote
+- name: Vantage
+  keywords: vantage
+  max_price: 60
+  min_price: 10
+  want:
+  - base
+  - lote
+- name: Brass
+  keywords: brass
+  max_price: 60
+  min_price: 10
+  want:
+  - base
+  - lote
+- name: Camel Up
+  keywords: camel up
+  max_price: 20
+  min_price: 5
+  want:
+  - base
+  - lote
+- name: 7 wonders
+  keywords: 7 wonders
+  max_price: 25
+  min_price: 5
+  want:
+  - base
+  - lote
+- name: Alta tensión
+  keywords: alta tension
+  max_price: 30
+  min_price: 10
+  want:
+  - base
+  - lote
+  exclude:
+  - cartas
 lote_bypass_price: true
