@@ -1,0 +1,30 @@
+# Config de 'marc' aplicada automaticamente desde el buzon.
+# Remitente: marcferrando01@gmail.com | Nombre en el formulario: Marc
+# Aplicada: 2026-07-05 21:01:31
+
+email:
+  smtp_host: smtp.gmail.com
+  smtp_port: 587
+  sender: "wallabot01@gmail.com"
+  recipient: "marcferrando01@gmail.com"
+
+location:
+  latitude: 39.4699
+  longitude: -0.3763
+  radius_km: 25
+
+delivery:
+  in_person: true
+  shipping: true
+
+use_ai: true
+
+alerts:
+  - name: "FrostPunk"
+    keywords: "frostpunk"
+    max_price: 100
+    min_price: 20
+    want: ["base", "lote"]
+    exclude: ["ps5", "videojuego", "ps4", "xbox"]
+
+lote_bypass_price: true
