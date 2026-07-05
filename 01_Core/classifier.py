@@ -304,6 +304,18 @@ _RISKY_KEYWORDS = {
         "game": "Rising Sun, el juego de mesa de CMON",
         "confusers": [],
     },
+    # Carcassonne cuela juegos DISTINTOS de la misma marca ("La Niebla sobre
+    # Carcassonne" es un cooperativo standalone, no el base de losetas buscado) y
+    # productos ajenos. SIN confusores a mano (el usuario rechaza diccionarios): lo
+    # resuelve el NLI vivo por semántica. En fallback (sin NLI) queda 'relevant',
+    # como antes -> 0 regresiones garantizadas sin servicio. OJO: Carcassonne es un
+    # juego popular; validar con 03_Diagnostico/diag_carcassone_nli.py que el NLI no
+    # rechaza ediciones legítimas del base antes de dar por bueno este gate.
+    "carcassone": {
+        "game": "Carcassonne, el juego de mesa base de colocar losetas de "
+                "ciudades, caminos y campos (Hans im Glück / Devir)",
+        "confusers": [],
+    },
     # "risk" se deja fuera por defecto: tiene variantes legítimas (Risk Legacy,
     # Risk: Star Wars...) y la palabra inglesa "risk" aparece en descripciones.
     # Añadir aquí cuando se afine su lista de confusores.
@@ -588,13 +600,17 @@ def detect_language(title, description=""):
 
 # --- Detección ESTRUCTURAL de ráfaga de tags (spam SEO sin marcador) ---------
 # Algunos vendedores pegan al final una ristra de nombres de juegos separados
-# por comas (sin "Tags:" delante) para salir en más búsquedas. La detectamos por
-# su FORMA: muchos elementos cortos seguidos, por comas y sin verbos. El umbral
-# es ALTO a propósito: una lista de 8+ nombres es spam; listas cortas (un lote
-# de pocos juegos, o componentes "tablero, fichas, cartas...") NO se tocan.
+# por comas O PUNTOS (sin "Tags:" delante) para salir en más búsquedas. La
+# detectamos por su FORMA: muchos elementos cortos seguidos, sin verbos. El
+# umbral es ALTO a propósito: una lista de 8+ nombres es spam; listas cortas (un
+# lote de pocos juegos, o componentes "tablero, fichas, cartas...") NO se tocan.
 # Además solo se recorta si delante hay una frase con verbo (si no, la lista
 # podría ser el contenido real del anuncio). Tunable: _TAG_BURST_MIN_ITEMS.
 _TAG_BURST_MIN_ITEMS = 8
+# Con vocabulario de lote, la lista PUEDE ser el contenido real (los juegos del
+# lote): solo cortamos una ráfaga EXCEPCIONALMENTE larga (spam SEO evidente, p.ej.
+# una cola de 12+ nombres tras las expansiones reales de un lote de un solo juego).
+_TAG_BURST_MIN_ITEMS_LOTE = 12
 
 # Marcas de que un fragmento es PROSA (estructura de frase), no un tag suelto.
 # Si un trozo entre comas contiene alguna, no cuenta como tag.
@@ -605,31 +621,38 @@ _CLAUSE_VERB_RE = re.compile(
     r"precio|estado|nuevo|nueva|seminuevo|completo|completa)\b")
 
 
-def _find_tag_burst_start(description):
+def _find_tag_burst_start(description, min_items=_TAG_BURST_MIN_ITEMS):
     """Índice (sobre el original) donde empieza una ráfaga de nombres separados
-    por comas tipo spam SEO, o None. _normalize conserva longitud, así que los
-    offsets coinciden con el texto original."""
+    por comas O PUNTOS tipo spam SEO, o None. `min_items` = tamaño mínimo de la
+    ráfaga (más alto para anuncios con vocab de lote). _normalize conserva
+    longitud, así que los offsets coinciden con el texto original."""
     norm = _normalize(description)
     segs, start = [], 0
-    for m in re.finditer(",", norm):
+    for m in re.finditer(r"[,.]", norm):       # comas Y puntos (spam por ambos)
         segs.append((start, norm[start:m.start()]))
         start = m.start() + 1
     segs.append((start, norm[start:]))
-    if len(segs) < _TAG_BURST_MIN_ITEMS:
+    if len(segs) < min_items:
         return None
 
     def _taglike(text):
         s = text.strip()
-        if not s or len(s.split()) > 4:        # vacío o largo -> no es un tag
-            return False
+        if not s or len(s.split()) > 5:        # vacío o largo -> no es un tag
+            return False                       # (5: cabe "saqueadores del mar del norte")
         return not _CLAUSE_VERB_RE.search(s)   # con verbo -> prosa, no tag
 
-    # Racha de trozos "tag-like" pegada al final.
-    i, run_start = len(segs) - 1, len(segs)
+    # Racha de trozos "tag-like" pegada al final. Ignora segmentos vacíos del
+    # final (p.ej. el que deja un punto al terminar el texto), que si no romperían
+    # la racha antes de empezar.
+    i = len(segs) - 1
+    while i >= 0 and not segs[i][1].strip():
+        i -= 1
+    end = i
+    run_start = i + 1
     while i >= 0 and _taglike(segs[i][1]):
         run_start = i
         i -= 1
-    if len(segs) - run_start < _TAG_BURST_MIN_ITEMS:
+    if end - run_start + 1 < min_items:
         return None
 
     cut = segs[run_start][0]
@@ -652,10 +675,10 @@ def strip_tag_spam(description):
     Recorta la descripción para quitar listas de nombres de OTROS juegos que el
     vendedor añade solo para salir en más búsquedas (no son lo que vende):
       1) Marcador explícito: 'Tags:', 'Similar a:', 'Parecido a:'...
-      2) Ráfaga estructural: 8+ nombres cortos seguidos por comas y sin verbos,
-         precedidos de una frase real. SOLO se aplica si el anuncio NO tiene
-         vocabulario de lote (si lo tiene, esa lista podría ser los juegos
-         reales del lote y no se toca).
+      2) Ráfaga estructural: nombres cortos seguidos por comas o puntos y sin
+         verbos, precedidos de una frase real. Umbral 8+; con vocabulario de lote
+         se exige una ráfaga mucho más larga (12+), porque ahí la lista podría ser
+         el contenido real del lote (solo se corta el spam SEO evidente).
     Si no detecta nada, devuelve la descripción igual.
     """
     if not description:
@@ -663,8 +686,10 @@ def strip_tag_spam(description):
     # _normalize conserva la longitud -> los offsets valen sobre el original.
     m = _TAG_MARKERS_RE.search(_normalize(description))
     cut = m.start() if m else None
-    if cut is None and not _has_lote_vocab(description):
-        burst = _find_tag_burst_start(description)
+    if cut is None:
+        min_items = (_TAG_BURST_MIN_ITEMS_LOTE if _has_lote_vocab(description)
+                     else _TAG_BURST_MIN_ITEMS)
+        burst = _find_tag_burst_start(description, min_items)
         if burst is not None:
             cut = burst
     if cut is not None:
@@ -1708,6 +1733,11 @@ def check_lote(target, title, description, use_llm=True, model="qwen2.5:3b"):
     """
     description = strip_tag_spam(description)
     full = f"{title} {description}"
+    # Un "lote" de solo CAJAS VACÍAS / componentes (p.ej. "se venden cajas vacías
+    # de varios juegos") NO es un lote de juegos reales: aunque nombre el juego
+    # buscado, no lo incluye jugable. Frase dura de components -> no cuenta.
+    if _components_hard_in_desc(full):
+        return {"is_lote": False, "includes_target": False, "games": ""}
     is_lote = _has_lote_vocab(full)
     # title_matches aplica el matching núcleo/genérico sobre título+descripción:
     # el juego buscado debe aparecer de verdad (no por una palabra común suelta).

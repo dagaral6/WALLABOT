@@ -17,6 +17,7 @@ Verifica SIN RED el clasificador por REGLAS (rediseño jun 2026, sin LLM):
 
 import os
 import sys
+import unicodedata
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 CORE = os.path.normpath(os.path.join(BASE, "..", "01_Core"))
@@ -113,6 +114,48 @@ lote2 = classifier.check_lote("mare nostrum", "Lote de novelas",
                               "Varias novelas de Blasco Ibanez, se venden juntas.")
 check("lote sin el juego buscado -> no includes_target",
       not lote2["includes_target"], lote2)
+
+
+# --- 6) auditoría de falsos positivos (jul 2026) --------------------------
+# 6a) ESPECIFICIDAD (title_matches): una sola palabra genérica de un término
+# multi-palabra no basta si es la más común habiendo otras más distintivas.
+if classifier.zipf_frequency is not None:
+    check("especificidad: 'castillos burgundy borgoña' NO casa 'Castillos de Arena'",
+          classifier.title_matches("castillos burgundy borgoña",
+                                   "Castillos de Arena") is False)
+    check("especificidad: 'inis' (distintiva) SÍ basta en 'estaciones inis'",
+          classifier.title_matches("estaciones inis", "Inis edición Devir") is True)
+
+# 6b) NFC: una ñ descompuesta (NFD: n + tilde combinante) debe casar igual.
+_nfd_titulo = unicodedata.normalize("NFD", "Castillos de Borgoña")  # ñ -> n + U+0303
+check("NFC: Borgoña descompuesta casa como borgona",
+      classifier.title_matches("castillos burgundy borgoña", _nfd_titulo) is True)
+
+# 6c) COMPONENTES delatados por la DESCRIPCIÓN (título limpio):
+check("desc 'organizador de...' -> components",
+      classifier.classify_category("Castillos de Borgoña",
+                                   "Organizador de losetas hexagonales.") == "components")
+check("desc 'no incluye juego / solo las cajas' -> components",
+      classifier.classify_category("2 Cajas Castillos Borgoña",
+                                   "No incluye juego. Solo las cajas.") == "components")
+check("falso amigo 'solo la caja tiene desgaste' + juego completo -> base",
+      classifier.classify_category(
+          "Camel Up", "Juego de mesa completo, solo la caja tiene desgaste.") == "base")
+
+# 6d) SPAM de tags por PUNTOS (ráfaga sin marcador) se recorta.
+_spam = ("Juego completo en buen estado. catan. azul. root. brass. dune. "
+         "nemesis. wingspan. scythe. everdell. gloomhaven.")
+check("tags por puntos: ráfaga recortada",
+      len(classifier.strip_tag_spam(_spam)) < len(_spam))
+check("prosa por puntos NO se recorta",
+      classifier.strip_tag_spam("Vendo Catan. Está completo. Envío a península.")
+      == "Vendo Catan. Está completo. Envío a península.")
+
+# 6e) check_lote: un "lote" de solo CAJAS VACÍAS no incluye el juego.
+_cajas = classifier.check_lote(
+    "camel up", "Cajas vacías juegos de mesa",
+    "Se venden cajas vacías de varios juegos de mesa. Caja del Camel Up.")
+check("lote de cajas vacías -> no includes_target", not _cajas["includes_target"], _cajas)
 
 
 print()

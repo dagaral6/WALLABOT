@@ -46,9 +46,10 @@
 Gate NLI de relevancia para keywords ambiguas (`_RISKY_KEYWORDS`, `nli_relevance_gate`):
 
 1. Vive en `classifier.py`; se integra en `main.py:evaluate()` (rama 1, tras `title_matches`).
-2. Decide SOLO sobre el TÍTULO. Soporta keywords de una palabra ("cities") y frases multi-palabra con orden contiguo en el fallback (`_phrase_in_order`). Además, `title_matches` exige orden (subsecuencia con huecos, `_keyword_in_order`) en TODAS las keywords multi-palabra, no solo las riesgosas: "rising sun" ≠ "sun rising".
-3. NLI vivo (Hugging Face, secret `HF_API_TOKEN`, `relevance.*` en `bot_settings.yaml`) con **fallback determinista** (confusores + regla de orden). Mantener siempre el fallback: ante la duda, dejar pasar.
-4. Test: `py 03_Diagnostico/test_nli_relevance.py` (sin red; smoke vivo opcional con `HF_API_TOKEN`).
+2. Decide SOLO sobre el TÍTULO. Soporta keywords de una palabra ("cities") y frases multi-palabra con orden contiguo en el fallback (`_phrase_in_order`). Además, `title_matches` exige, en TODAS las keywords multi-palabra (no solo las riesgosas): **orden** (subsecuencia con huecos, `_keyword_in_order`: "rising sun" ≠ "sun rising") y **especificidad** (una sola coincidencia no basta si es la palabra más genérica del término por frecuencia `wordfreq`/`_word_freq`, habiendo otras más distintivas sin casar: "castillos burgundy borgoña" ≠ "Castillos de Arena").
+3. NLI vivo (Hugging Face, secret `HF_API_TOKEN`, `relevance.*` en `bot_settings.yaml`) con **fallback determinista** (confusores + regla de orden). Mantener siempre el fallback: ante la duda, dejar pasar. Keywords actuales: `cities`, `rising sun`, `carcassone` (esta última sin confusores, solo NLI).
+4. Al añadir una keyword risky de un juego POPULAR (muchas ediciones legítimas), validar con el NLI vivo que no rechaza esas ediciones antes de confiar (falsos negativos = anuncios buenos perdidos). Plantilla: `py 03_Diagnostico/diag_carcassone_nli.py` (requiere `HF_API_TOKEN`).
+5. Test: `py 03_Diagnostico/test_nli_relevance.py` (sin red; smoke vivo opcional con `HF_API_TOKEN`).
 
 Refuerzo de categoría con base de datos OFFLINE (`gamedb.py`, sustituye a `bgg.py`; BGG XMLAPI2 cerró con 401 en 2025):
 
@@ -59,9 +60,9 @@ Refuerzo de categoría con base de datos OFFLINE (`gamedb.py`, sustituye a `bgg.
 
 Validación NLI de categoría (`classifier.py`, `category_nli.*`):
 
-1. Las REGLAS son el primer filtro (resultado provisional); si `category_nli.enabled`, el NLI lo VALIDA sobre la descripción y puede mover `base`→`components`/`expansion` (`_maybe_refine_category_nli`, `_category_nli`, motor `_nli_hf_zeroshot`). Mismo secret `HF_API_TOKEN` y modelo que relevancia.
+1. Las REGLAS son el primer filtro (resultado provisional); si `category_nli.enabled`, el NLI lo VALIDA sobre la descripción y puede mover `base`→`components`/`expansion` (`_maybe_refine_category_nli`, `_category_nli`, motor `_nli_hf_zeroshot`). Mismo secret `HF_API_TOKEN` y modelo que relevancia. Antes de llegar al NLI, las reglas ya cazan muchos `components` desde la descripción por frases inequívocas (`_components_only_in_desc`/`_components_hard_in_desc`: "no incluye juego", "solo las cajas", "organizador de…"); el NLI cubre lo que las frases no atrapan.
 2. Gateado por coste: solo se llama al NLI si reglas=`base`, HAY descripción y el texto tiene vocabulario de accesorio/expansión. Conservador: ante la duda mantiene reglas; nunca descarta ni marca `not_game`; no toca lotes. Sin servicio NLI → reglas.
-3. Test: `py 03_Diagnostico/test_category_nli.py` (NLI mockeado, sin red).
+3. Test: `py 03_Diagnostico/test_category_nli.py` (NLI mockeado, sin red). Verificar el NLI vivo: `py 03_Diagnostico/diag_nli.py` (config, sin red) / `--live` (llamada real, requiere `HF_API_TOKEN`).
 
 ## Validación de clasificador NLI (experimental)
 

@@ -307,6 +307,14 @@ Ejemplo real: un lote de Earth Reborn, Eketorp y Raja cuya descripción termina
 con "Similar a: HeroQuest, Descent, Inis, ...". Tras el corte, el detector de
 lotes solo ve los juegos reales del pack y concluye que Inis no está incluido.
 
+Cuando la lista **no lleva marcador** (una ristra de nombres pegada al final,
+separados por comas **o puntos**), se detecta por su FORMA: 8+ elementos cortos
+seguidos, sin verbos y precedidos de una frase real. Solo se corta esa cola de
+spam. En anuncios con vocabulario de **lote** el umbral sube (12+), porque ahí la
+lista podría ser el contenido real del lote; así se recorta el spam SEO evidente
+(p.ej. un lote de expansiones de *un* juego con una cola de 20+ nombres de otros)
+sin tocar un lote normal de pocos juegos.
+
 ### Pistas de componentes y expansiones
 Cuando el anuncio menciona palabras como "inserto", "separador",
 "instrucciones", "fundas", "expansión" o "ampliación", el programa añade una
@@ -329,8 +337,10 @@ que sí requiere contexto (¿es un juego? ¿base o expansión? ¿lote?).
 ### Keywords ambiguas: gate de relevancia (NLI)
 Algunas keywords son tan comunes que cuelan **otros juegos** que las contienen:
 una palabra ("cities" → *Lost Cities*, *Underwater Cities*, *Cities of Sigmar*…)
-o una frase ("rising sun" → *Setting Sun Rising*, dardos *Rising Sun*…). Para
-ESAS keywords (definidas en `classifier.py` → `_RISKY_KEYWORDS`) hay un **gate de
+o una frase ("rising sun" → *Setting Sun Rising*, dardos *Rising Sun*…). También
+"carcassone" cuela juegos DISTINTOS de la misma marca ("La Niebla sobre
+Carcassonne" es un cooperativo standalone, no el base de losetas). Para ESAS
+keywords (definidas en `classifier.py` → `_RISKY_KEYWORDS`) hay un **gate de
 relevancia** que decide, **solo a partir del título**, si el anuncio es de verdad
 el juego buscado:
 - **NLI vivo** (Hugging Face zero-shot, modelo multilingüe; secret `HF_API_TOKEN`
@@ -341,11 +351,22 @@ el juego buscado:
 
 Es reversible (`relevance.enabled` en `bot_settings.yaml`) y solo se dispara en
 alertas con keyword ambigua; el resto de anuncios no se ven afectados.
+`carcassone` no tiene confusores a mano: se apoya en el NLI vivo (en fallback
+queda "relevant", sin cambios). Como Carcassonne es un juego popular, validar con
+`py 03_Diagnostico/diag_carcassone_nli.py` (requiere `HF_API_TOKEN`) que el NLI no
+rechaza ediciones legítimas del base antes de confiar en ese gate.
 
 Con independencia de ese gate, la coincidencia de título (`title_matches`) exige
 **orden de palabras** en TODA keyword de varias palabras (subsecuencia con
 huecos): "rising sun" no acepta "sun rising", pero "estaciones inis" sigue
 casando con "Las Estaciones de Inis".
+
+Además, en una keyword de varias palabras, una **única** palabra coincidente no
+basta si es la **más genérica** (la más frecuente del término) habiendo otras más
+distintivas sin coincidir. Así "castillos burgundy borgoña" no cuela "Castillos
+de Arena" (solo comparten "castillos", la palabra común), pero "estaciones inis"
+sigue bastando con "inis" (la distintiva). Se decide por frecuencia léxica
+(`wordfreq`), sin listas a mano; sin `wordfreq` no se aplica.
 
 ### Refuerzo opcional con base de datos OFFLINE de juegos
 `gamedb.py` consulta una base de datos **offline** de juegos de mesa
@@ -369,15 +390,31 @@ alto. El título no se analiza con langdetect: al estar lleno de nombres propios
 ("Camel Up Carcassonne") engaña al detector. Reversible (`language.langdetect_enabled`).
 Requiere la dependencia `langdetect`; sin ella, se usa solo el vocabulario.
 
+### Componentes delatados por la descripción (reglas)
+Aunque el título sea solo el nombre del juego, las reglas marcan **componentes**
+si la **descripción** contiene una frase inequívoca de que NO se vende el juego,
+solo un accesorio o la caja: "no incluye juego", "solo las cajas", "cajas
+vacías", "organizador de…", "inserto para…", "encaja en el juego"… Las frases
+más decisivas ("no incluye juego", "solo las cajas") prevalecen aunque el texto
+diga "juego de mesa". Se excluye a propósito el singular ambiguo "solo la caja"
+("solo la caja *tiene desgaste*" describe un base completo). Guarda: no se aplica
+si el título es claramente un juego base, para no degradar un "base con extras".
+
+Esas mismas frases duras también **vetan la rama de lotes** (`check_lote`): un
+anuncio de "cajas vacías de varios juegos" nombra varios títulos pero no vende
+ningún juego jugable, así que no cuenta como lote aunque cite el juego buscado.
+
 ### Validación de categoría por NLI (opcional)
 Las reglas deciden la categoría (base/expansión/componentes/lote/no-juego). Con
 `category_nli.enabled: true`, el NLI (mismo motor zero-shot que el gate de
 relevancia, secret `HF_API_TOKEN`) **valida** ese resultado leyendo la
 **descripción** y corrige los `base` que en realidad son `componentes` (insertos,
-fichas sueltas, cajas vacías) o `expansión`. Solo se invoca cuando hace falta
-(reglas=base, hay descripción y vocabulario de accesorio/expansión), nunca
-descarta ni marca no-juego, no toca lotes, y si el NLI no responde se queda con
-las reglas.
+fichas sueltas, cajas vacías) o `expansión` que las reglas no cazan. Solo se
+invoca cuando hace falta (reglas=base, hay descripción y vocabulario de
+accesorio/expansión), nunca descarta ni marca no-juego, no toca lotes, y si el
+NLI no responde se queda con las reglas. Para verificar que el NLI vivo responde
+de verdad (no solo que está configurado): `py 03_Diagnostico/diag_nli.py`
+(config, sin red) o `--live` (una llamada real, requiere `HF_API_TOKEN`).
 
 ### Eficiencia con Ollama
 Cada anuncio se clasifica **una sola vez** (la decisión se guarda en la BD).

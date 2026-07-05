@@ -77,7 +77,7 @@ CASES_COMP = [
     ("Rising Sun",
      "Solo el Monster Pack, miniaturas y fichas sueltas, no es el juego completo."),
     ("Catan",
-     "Vendo solo las cajas y los separadores, sin componentes dentro."),
+     "Tengo separadores y fichas de recambio sueltas que ya no uso."),
 ]
 CASE_EXP = ("Catan",
             "Es la expansion Navegantes, necesitas el juego base para jugar.")
