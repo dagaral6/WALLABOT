@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-07-06 13:11:59 | Eliminadas: Frostpunk (hasta 90€), Carcassonne: Posadas y Catedrales, Catan, Cities
+# 2026-07-06 17:59:18 | Eliminadas: Carcassone
 
 email:
   smtp_host: smtp.gmail.com
@@ -35,12 +35,6 @@ alerts:
 - name: Risk
   keywords: risk
   max_price: 100
-  want:
-  - base
-  - lote
-- name: Carcassone
-  keywords: carcassone
-  max_price: 50
   want:
   - base
   - lote
