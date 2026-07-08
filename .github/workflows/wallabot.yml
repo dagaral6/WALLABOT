@@ -76,13 +76,20 @@ jobs:
         if: steps.gate.outputs.run == 'true'
         run: python 01_Core/main.py --once
 
-      - name: Persistir estado (BD + configs)
+      # Regenera el visor de la BD publicado en GitHub Pages (docs/db.html) a
+      # partir del estado actual. Se hace aunque el ciclo falle: refleja lo que
+      # haya en la BD en ese momento.
+      - name: Generar visor de la BD (docs/db.html)
+        if: ${{ always() && steps.gate.outputs.run == 'true' }}
+        run: python 01_Core/build_db_viewer.py
+
+      - name: Persistir estado (BD + configs + visor)
         if: ${{ always() && steps.gate.outputs.run == 'true' }}   # guarda aunque el ciclo falle, salvo si dormimos
         run: |
           git config user.name "wallabot (actions)"
           git config user.email "wallabot01@gmail.com"
           git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-          git add -A 01_Core
+          git add -A 01_Core docs/db.html
           if git diff --cached --quiet; then
             echo "Sin cambios de estado."
           else

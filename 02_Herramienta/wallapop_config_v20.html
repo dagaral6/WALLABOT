@@ -332,6 +332,7 @@
     <div class="brand">
       <h1>wallabot Alerts</h1>
       <p>Configura tus alertas de juegos de mesa en Wallapop</p>
+      <p style="margin:4px 0 0"><a href="./db.html">📊 Ver la base de datos de anuncios →</a></p>
     </div>
     <button class="theme-btn" id="themeBtn" type="button" title="Cambiar tema">
       <span id="themeIcon">🌙</span><span id="themeTxt">Oscuro</span>
@@ -430,6 +431,16 @@
             un anuncio cuyo <b>título</b> no contenga tus palabras nunca se detectará como lote.</div>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>📧 Formato de aviso</h2>
+      <p class="hint">Cómo quieres recibir las alertas en cada búsqueda: un correo por alerta, o
+        un único correo con el resumen de todas tus alertas.</p>
+      <select id="notifyMode">
+        <option value="individual">Un correo por cada alerta (individual)</option>
+        <option value="digest">Un solo correo resumen con todas tus alertas</option>
+      </select>
     </div>
 
     <div class="card">
@@ -556,6 +567,7 @@ const state = {
   radius: 25,
   inPerson: true, shipping: true,
   useAi: true,
+  notifyMode: "individual",
   games: [ newGame() ],
   addGames: [ newGame() ],
 };
@@ -619,6 +631,7 @@ function buildYAML(s){
   L.push("  shipping: " + (s.shipping ? "true" : "false"));
   L.push("");
   L.push("use_ai: " + (s.useAi ? "true" : "false"));
+  L.push("notify_mode: " + (s.notifyMode === "digest" ? "digest" : "individual"));
   L.push("");
   L.push(buildAlertsYAML(s.games) || "alerts: []");
   L.push("");
@@ -760,6 +773,7 @@ function stateFromConfig(cfg){
   if (typeof del.shipping === "boolean") state.shipping = del.shipping;
   if (typeof cfg.use_ai === "boolean") state.useAi = cfg.use_ai;
   else if (cfg.classifier && typeof cfg.classifier.use_llm === "boolean") state.useAi = cfg.classifier.use_llm; // compat
+  if (cfg.notify_mode != null) state.notifyMode = (String(cfg.notify_mode) === "digest" ? "digest" : "individual");
   const alerts = Array.isArray(cfg.alerts) ? cfg.alerts : [];
   if (alerts.length){
     state.games = alerts.map(a => ({
@@ -848,6 +862,7 @@ function render(){
   $("radius").value = state.radius; $("radiusVal").textContent = state.radius + " km";
   $("inPerson").checked = state.inPerson; $("shipping").checked = state.shipping;
   $("useAi").checked = state.useAi;
+  $("notifyMode").value = state.notifyMode;
   $("locLabel").textContent = "📍 " + state.locLabel + "  (" + state.lat.toFixed(4) + ", " + state.lon.toFixed(4) + ")";
   renderCities(); renderGames(); renderAddGames(); updateYaml(); updateAddYaml();
 }
@@ -891,6 +906,7 @@ $("radius").addEventListener("input", e => { state.radius = +e.target.value; $("
 $("inPerson").addEventListener("change", e => { state.inPerson = e.target.checked; updateYaml(); });
 $("shipping").addEventListener("change", e => { state.shipping = e.target.checked; updateYaml(); });
 $("useAi").addEventListener("change", e => { state.useAi = e.target.checked; updateYaml(); });
+$("notifyMode").addEventListener("change", e => { state.notifyMode = e.target.value; updateYaml(); });
 $("addGame").addEventListener("click", () => { state.games.push(newGame()); renderGames(); updateYaml(); });
 $("addAddGame").addEventListener("click", () => { state.addGames.push(newGame()); renderAddGames(); updateAddYaml(); });
 

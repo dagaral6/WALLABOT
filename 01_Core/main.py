@@ -132,6 +132,14 @@ def _use_ai(cfg):
     return bool((cfg.get("classifier") or {}).get("use_llm", True))
 
 
+def _notify_mode(cfg):
+    """Modo de aviso del usuario: 'individual' (un email por alerta, por
+    defecto) o 'digest' (un único email resumen por pasada). Cualquier valor
+    desconocido cae a 'individual'."""
+    mode = str(cfg.get("notify_mode") or "individual").strip().lower()
+    return "digest" if mode == "digest" else "individual"
+
+
 def _hard_excluded(item, alert):
     """Exclusión manual OPCIONAL por variantes (p.ej. 'junior'). Vacía por defecto."""
     title = (item.get("title") or "").lower()
@@ -320,7 +328,7 @@ def _refine_categories_with_bgg(items, cats):
     return out
 
 
-def process_alert(user_id, config, alert, notify_enabled=True):
+def process_alert(user_id, config, alert):
     name = alert["name"]
     db_key = f"{user_id}/{name}"   # separa lo visto por cada usuario en la BD
     log.info("[%s] Comprobando alerta: %s", user_id, name)
@@ -392,10 +400,11 @@ def process_alert(user_id, config, alert, notify_enabled=True):
             it["category"] = category
             new_kept.append(it)
 
-    # --- 2) BAJADAS DE PRECIO en anuncios que YA notificamos y siguen vivos --
-    # "Cualquier bajada" respecto al último precio visto. Si sube, refrescamos
-    # la referencia (sin avisar) para comparar futuras bajadas con el último.
-    price_drops, price_updates = [], []   # price_updates: (id, nuevo_precio)
+    # --- 2) CAMBIOS DE PRECIO en anuncios que YA notificamos y siguen vivos ---
+    # "Cualquier cambio" respecto al último precio visto: bajada o subida.
+    # En ambos casos refrescamos la referencia para comparar el próximo cambio
+    # con el último precio visto.
+    price_drops, price_rises, price_updates = [], [], []   # updates: (id, precio)
     for iid, row in kept_rows.items():
         it = raw_by_id.get(iid)
         if it is None:
@@ -408,7 +417,10 @@ def process_alert(user_id, config, alert, notify_enabled=True):
             drop["old_price"], drop["category"] = old, row.get("category")
             price_drops.append(drop)
             price_updates.append((iid, new))
-        elif new != old:
+        elif new > old:
+            rise = dict(it)
+            rise["old_price"], rise["category"] = old, row.get("category")
+            price_rises.append(rise)
             price_updates.append((iid, new))
 
     # --- 3) RECUPERADOS: rechazados por precio que ahora entran (han bajado) --
@@ -432,20 +444,21 @@ def process_alert(user_id, config, alert, notify_enabled=True):
             resurrected.append(res)
             promoted.append((iid, new))
 
-    # Bajas: items que notificamos y cuyo listing ya no aparece.
+    # Bajas: items que notificamos y cuyo listing ya no aparece. Se borran de la
+    # BD para mantenerla limpia, pero YA NO se notifican (decisión de producto:
+    # solo avisamos de novedades y cambios de precio).
     sold_ids = set(kept_rows) - raw_ids
-    sold_items = [kept_rows[i] for i in sold_ids]
 
     # Housekeeping: rechazados que desaparecen, fuera de la BD.
     rejected_ids = known - set(kept_rows)
     rejected_gone = rejected_ids - raw_ids
 
     log.info("  -> [%s] %d resultados | %d fuera por categoría | %d nuevos | "
-             "%d fuera por entrega | %d aceptados | %d bajadas | %d recuperados "
-             "| %d retirados",
+             "%d fuera por entrega | %d aceptados | %d bajadas | %d subidas | "
+             "%d recuperados | %d retirados",
              user_id, len(results), n_descartados_categoria, n_candidates,
              n_descartados_entrega, len(new_kept), len(price_drops),
-             len(resurrected), len(sold_items))
+             len(price_rises), len(resurrected), len(sold_ids))
 
     database.add_items(db_key, decided)
     database.update_prices(db_key, price_updates)
@@ -455,20 +468,36 @@ def process_alert(user_id, config, alert, notify_enabled=True):
     # Para el email, los recuperados son también "bajada de precio".
     all_drops = price_drops + resurrected
 
-    if notify_enabled:
-        notifier.notify(config, name, new_kept, sold_items, all_drops)
-    else:
-        log.info("  (modo seed: registrado sin enviar email)")
+    # Devolvemos los eventos; QUIÉN y CÓMO se avisa lo decide run_cycle según el
+    # modo del usuario (individual vs. resumen).
+    return {"name": name, "new": new_kept,
+            "drops": all_drops, "rises": price_rises}
 
 
 def run_cycle(user_id, config, notify_enabled=True):
+    """Procesa todas las alertas del usuario y decide el envío según su modo:
+    'individual' (un email por alerta) o 'digest' (un único email resumen)."""
+    mode = _notify_mode(config)
+    sections = []
     for alert in config.get("alerts") or []:
         try:
-            process_alert(user_id, config, alert, notify_enabled)
+            bundle = process_alert(user_id, config, alert)
         except Exception as e:
             log.exception("[%s] Error en alerta '%s': %s",
                           user_id, alert.get("name"), e)
+            bundle = None
+        if bundle and notify_enabled:
+            if mode == "digest":
+                sections.append(bundle)   # se envía todo junto al final
+            else:
+                notifier.notify(config, bundle["name"], bundle["new"],
+                                bundle["drops"], bundle["rises"])
         time.sleep(2)
+
+    if not notify_enabled:
+        log.info("[%s] modo seed: alertas registradas sin enviar email", user_id)
+    elif mode == "digest":
+        notifier.notify_digest(config, sections)
 
 
 def _bootstrap_data_dir():
