@@ -1,5 +1,5 @@
-# Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-06-23 14:09:54 | Nuevas: Rising Sun
+# Config de 'dario' actualizada automaticamente (borrado de alertas).
+# 2026-07-06 17:59:18 | Eliminadas: Carcassone
 
 email:
   smtp_host: smtp.gmail.com
@@ -15,17 +15,6 @@ delivery:
   shipping: true
 use_ai: true
 alerts:
-- name: Frostpunk (hasta 90€)
-  keywords: frostpunk
-  max_price: 90
-  exclude:
-  - playstation
-  - ps4
-  - ps5
-  - videojuego
-  - sidequest
-  - side
-  - quest
 - name: Las Estaciones de Inis
   keywords: estaciones inis
   max_price: 35
@@ -37,38 +26,15 @@ alerts:
   want:
   - base
   - lote
-- name: 'Carcassonne: Posadas y Catedrales'
-  keywords: carcassonne posadas catedrales
-  max_price: 40
-  want:
-  - expansion
 - name: Mare Nostrum
   keywords: mare nostrum
   max_price: 45
   want:
   - base
   - lote
-- name: Catan
-  keywords: catan
-  max_price: 80
-  want:
-  - base
-  - lote
 - name: Risk
   keywords: risk
   max_price: 100
-  want:
-  - base
-  - lote
-- name: Carcassone
-  keywords: carcassone
-  max_price: 50
-  want:
-  - base
-  - lote
-- name: Cities
-  keywords: cities
-  max_price: 40
   want:
   - base
   - lote
