@@ -1,5 +1,5 @@
-# Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-07-06 17:59:18 | Eliminadas: Carcassone
+# Config de 'dario' actualizada automaticamente (alertas agregadas).
+# 2026-07-10 12:00:03 | Nuevas: Blood Rage
 
 email:
   smtp_host: smtp.gmail.com
@@ -47,6 +47,12 @@ alerts:
 - name: Rising Sun
   keywords: rising sun
   max_price: 90
+  want:
+  - base
+  - lote
+- name: Blood Rage
+  keywords: blood rage
+  max_price: 65
   want:
   - base
   - lote
