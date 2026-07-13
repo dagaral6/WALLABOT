@@ -44,7 +44,11 @@ HF_MODELS = [
     "joeddav/xlm-roberta-large-xnli",
 ]
 
-HF_API_URL = "https://api-inference.huggingface.co/models/{model}"
+# api-inference.huggingface.co fue retirado por HF; el actual es el router de
+# Inference Providers (provider hf-inference). Mismo endpoint que produccion
+# (01_Core/classifier.py:_NLI_API_URL). Override por NLI_API_URL si cambia otra vez.
+HF_API_URL = os.getenv(
+    "NLI_API_URL", "https://router.huggingface.co/hf-inference/models/{model}")
 
 # Etiqueta -> categoria interna (inverso de LABELS).
 _LABEL_TO_CAT = {v: k for k, v in LABELS.items()}
