@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-07-13 09:47:55 | Eliminadas: Las Estaciones de Inis
+# 2026-07-13 13:37:42 | Eliminadas: Risk
 
 email:
   smtp_host: smtp.gmail.com
@@ -24,12 +24,6 @@ alerts:
 - name: Mare Nostrum
   keywords: mare nostrum
   max_price: 45
-  want:
-  - base
-  - lote
-- name: Risk
-  keywords: risk
-  max_price: 100
   want:
   - base
   - lote
