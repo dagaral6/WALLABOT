@@ -13,9 +13,12 @@ Cada 2 horas (minuto 33), GitHub arranca una maquina limpia que:
    nuevos de la lista blanca y responde "Configuracion aplicada"
 4. `main.py --once` — una pasada completa: scrapeo, filtro de entrega,
    clasificacion con LLM (cascada Gemini→Groq→…) y envio de avisos por Gmail
-5. **Commitea el estado de vuelta al repo** (`git add -A 01_Core` + push):
-   asi la siguiente ejecucion sabe que anuncios ya se vieron
-6. La maquina se destruye
+   (individual o resumen, segun `notify_mode` de cada usuario)
+5. `build_db_viewer.py` — regenera `docs/db.html` (visor de la BD publicado
+   en Pages) a partir del estado actual
+6. **Commitea el estado de vuelta al repo** (`git add -A 01_Core docs/db.html`
+   + push): asi la siguiente ejecucion sabe que anuncios ya se vieron
+7. La maquina se destruye
 
 El flujo del usuario no cambia: formulario -> correo a wallabot01 ->
 config aplicado + confirmacion -> avisos. Todo automatico.

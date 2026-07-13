@@ -28,9 +28,16 @@
 ## Cambio en GitHub Actions
 
 1. Leer `05_Docs/DEPLOY_GITHUB_ACTIONS.md`.
-2. Recordar que el workflow commitea `alerts.db` y `configs/`.
+2. Recordar que el workflow commitea `alerts.db`, `configs/` y `docs/db.html` (paso "Generar visor de la BD", `01_Core/build_db_viewer.py`, antes de "Persistir estado").
 3. Mantener `git pull --rebase --autostash` antes de `git add`.
 4. No romper el gate de sueño nocturno (01-07 Madrid, coincidir entre `bot_settings.yaml` y `.github/workflows/wallabot.yml`).
+
+## Cambio en el visor de la BD (docs/db.html)
+
+1. Editar `01_Core/build_db_viewer.py` (nunca `docs/db.html` a mano: se regenera cada pasada y se sobrescribe).
+2. Reutiliza el patrón de `03_Diagnostico/build_review_html.py` (datos embebidos en `__DATA__`); solo lectura de `alerts.db`.
+3. Probar en local: `py 01_Core/build_db_viewer.py` y abrir `docs/db.html` en el navegador.
+4. Si se añaden columnas nuevas a `seen_items` (`database.py`), valorar si aportan al visor (persona, alerta, decisión, categoría, idioma, precio, url, first_seen).
 
 ## Cambio en clasificador
 

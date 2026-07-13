@@ -7,18 +7,20 @@ Proyecto Python + HTML para alertas de juegos de mesa en Wallapop.
 - `01_Core/`: backend Python.
 - `02_Herramienta/`: HTML configurador actual `wallapop_config_v20.html`.
 - `docs/index.html`: copia de v20 publicada en GitHub Pages (formulario público); debe mantenerse idéntica a v20.
+- `docs/db.html`: visor de la BD (solo lectura) publicado en GitHub Pages, generado por `01_Core/build_db_viewer.py`; no editar a mano, se regenera cada pasada.
 - `03_Diagnostico/`: scripts de diagnóstico y tests.
 - `05_Docs/`: documentación larga.
-- GitHub Actions ejecuta el bot cada 2 horas y commitea `alerts.db` + `configs/`.
+- GitHub Actions ejecuta el bot cada 2 horas y commitea `alerts.db` + `configs/` + `docs/db.html`.
 
 ## Backend principal
 
-- `main.py`: orquesta ciclos, sueño nocturno, multi-config, novedades, bajas, bajadas de precio y notificaciones.
+- `main.py`: orquesta ciclos, sueño nocturno, multi-config, novedades, bajadas y subidas de precio. Los anuncios retirados/vendidos se borran de la BD (housekeeping) pero **ya no se notifican**. `process_alert` ya no envía email: devuelve un dict de eventos (`new`/`drops`/`rises`) y `run_cycle` decide el envío según `notify_mode` del usuario (`individual`: un correo por alerta; `digest`: un único correo resumen al final del ciclo).
 - `scraper.py`: API Wallapop + paginación.
 - `classifier.py`: clasificación por **reglas** deterministas (base/expansión/componentes/lote/no-juego) + dos usos del **NLI VIVO** (Hugging Face zero-shot, mismo motor `_nli_hf_zeroshot`, secret `HF_API_TOKEN`): **gate de relevancia** (`relevance.*`) para keywords ambiguas y **validación de categoría OPCIONAL** (`category_nli.*`) que, sobre la descripción, corrige `base`→`expansión`/`componentes` (las reglas siguen siendo el primer filtro). La cascada LLM cloud + circuit breaker + clasificación por lotes (`batch_size`) sigue en el código pero **inerte** (retirada).
 - `gamedb.py`: refuerzo OPCIONAL de categoría con una base de datos **OFFLINE** de juegos (`01_Core/gamedb.json`, compilada por `03_Diagnostico/build_gamedb.py` desde un dump CSV). Sustituye a `bgg.py` (la XMLAPI2 de BoardGameGeek cerró el acceso anónimo, 401, en 2025). `gamedb.categorize(título, descripción)` identifica el juego del título (índice de nombres inglés + traducción) y detecta **expansión** por el propio título o porque la **descripción** nombra una expansión concreta del juego base (guarda anti-«compatible»). Sin red ni token → determinista en GitHub Actions; degradación elegante. Reversible (`bgg.enabled` en `bot_settings.yaml`; se lee por compatibilidad). `main.py` lo importa como `import gamedb as bgg`. `bgg.py` se conserva en el repo sin uso.
 - `database.py`: SQLite `alerts.db`. Guarda histórico de alertas eliminadas sin borrar filas (`deleted_reason`/`deleted_at`, `mark_alert_deleted()`).
-- `notifier.py`: emails Gmail.
+- `notifier.py`: emails Gmail. `notify()` (individual, por alerta) y `notify_digest()` (un correo resumen con todas las alertas del usuario). `build_html()` ya no incluye bloque de retirados; incluye bloque de subida de precio.
+- `build_db_viewer.py`: genera `docs/db.html` (visor de la BD, solo lectura) desde `alerts.db`; mismo patrón que `03_Diagnostico/build_review_html.py`.
 - `config_inbox.py`: lee configs por correo (crear/añadir/borrar; el borrado lleva un motivo por alerta y marca el histórico en la BD).
 - `manage.py`: alta/baja/listado de usuarios.
 

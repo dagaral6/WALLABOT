@@ -11,6 +11,7 @@ No leer salvo petición explícita:
 - `99_Obsoletos/`
 - `03_Diagnostico/nli_dataset/`: output temporal de `build_nli_dataset.py` (se regenera en cada Fase 0)
 - `03_Diagnostico/wallapop_revision_keep.html` y sus exports `.jsonl`/`.csv`: HTML de revisión manual generado por `build_review_html.py` desde `alerts.db` (se regenera; no aporta como lectura)
+- `docs/db.html`: visor de la BD generado por `01_Core/build_db_viewer.py` (datos de `alerts.db` embebidos; se regenera cada pasada, no aporta como lectura — editar el generador, no el HTML)
 - versiones antiguas del HTML (v15/v17/v18/v19): ya no existen en el repo, borradas; la actual es `wallapop_config_v20.html` (histórico solo en `git log`)
 - respuestas crudas de Wallapop
 - zips históricos

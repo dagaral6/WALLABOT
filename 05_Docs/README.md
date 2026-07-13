@@ -5,9 +5,11 @@ con filtrado inteligente de base / expansión / componentes / lotes.
 
 ## Qué hace
 - Vigila varias búsquedas, cada una con su **precio máximo**.
-- Te avisa **solo de novedades** y de bajas (vendido/retirado).
-- Te avisa de **bajadas de precio** de anuncios que ya te habían llegado, y
-  **recupera** los que habías descartado por caros si bajan a tu presupuesto.
+- Te avisa de **novedades** y de **cambios de precio** (bajadas y subidas) de
+  anuncios que ya te habían llegado. Los anuncios retirados o vendidos se
+  dejan de vigilar en silencio: **no generan aviso**.
+- **Recupera** los anuncios que habías descartado por caros si bajan a tu
+  presupuesto.
 - Por defecto solo te llega el **juego base** (descarta expansiones y
   componentes sueltos como insertos, fundas, fichas...).
 - Los **lotes** (varios juegos juntos) te llegan **aunque superen el precio**.
@@ -23,9 +25,17 @@ con filtrado inteligente de base / expansión / componentes / lotes.
   (antes solo obtenía la primera página, que podía tener solo 3-4 anuncios).
 - **Multi-usuario**: cada persona configura sus alertas en el formulario HTML
   (publicado en GitHub Pages: https://dagaral6.github.io/WALLABOT/) y su
-  config llega y se aplica sola por correo (un config y un correo de
-  avisos por usuario). El formulario tiene también una pestaña **"Eliminar
-  alertas"** que envía una orden de borrado al bot.
+  config llega y se aplica sola por correo (un config por usuario). El
+  formulario tiene también una pestaña **"Eliminar alertas"** que envía una
+  orden de borrado al bot.
+- **Formato de aviso a elegir**: en el formulario, cada usuario decide si
+  quiere un **correo por cada alerta** (individual, por defecto) o **un solo
+  correo resumen** por pasada con todas sus alertas (`notify_mode` en el
+  config).
+- **Visor de la base de datos**: también en GitHub Pages
+  (`docs/db.html`, enlazado desde el propio formulario) para consultar los
+  anuncios vistos ahora mismo (notificados y descartados), con filtros por
+  persona, alerta, decisión, categoría, idioma y precio.
 - **Descansa de madrugada**: por defecto no hace nada de **01:00 a 07:00**
   (hora de Madrid); configurable en `bot_settings.yaml`.
 
@@ -73,7 +83,11 @@ el formulario HTML y su config llega y se aplica solo por correo (ver
 1. `email.recipient` es el correo donde llegan los avisos de ese usuario.
    El remitente (`wallabot01@gmail.com`) y su App Password ya vienen puestos
    por el formulario.
-2. Define tus alertas. Por cada juego:
+2. `notify_mode`: opcional, `individual` (por defecto, un correo por alerta
+   con contenido) o `digest` (un único correo resumen con todas las alertas
+   de esa pasada). Lo fija el formulario; si se edita el YAML a mano y se
+   omite, se comporta como `individual`.
+3. Define tus alertas. Por cada juego:
    - `keywords`: lo que buscarías en Wallapop.
    - `max_price`: opcional. Los lotes lo ignoran siempre.
    - `want`: opcional. Por defecto `["base", "lote"]`. Para buscar una
