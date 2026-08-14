@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-07-13 13:37:42 | Eliminadas: Risk
+# 2026-08-14 21:28:24 | Eliminadas: Rising Sun
 
 email:
   smtp_host: smtp.gmail.com
@@ -30,12 +30,6 @@ alerts:
 - name: Camel Up
   keywords: camel up
   max_price: 35
-  want:
-  - base
-  - lote
-- name: Rising Sun
-  keywords: rising sun
-  max_price: 90
   want:
   - base
   - lote
