@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-08-14 21:28:24 | Eliminadas: Rising Sun
+# 2026-09-12 20:35:00 | Eliminadas: Castilllos de Burgundy
 
 email:
   smtp_host: smtp.gmail.com
@@ -15,12 +15,6 @@ delivery:
   shipping: true
 use_ai: true
 alerts:
-- name: Castilllos de Burgundy
-  keywords: castillos burgundy borgoña
-  max_price: 35
-  want:
-  - base
-  - lote
 - name: Mare Nostrum
   keywords: mare nostrum
   max_price: 45
