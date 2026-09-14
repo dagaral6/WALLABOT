@@ -1,5 +1,5 @@
-# Config de 'dario' actualizada automaticamente (borrado de alertas).
-# 2026-09-12 20:35:00 | Eliminadas: Castilllos de Burgundy
+# Config de 'dario' actualizada automaticamente (alertas agregadas).
+# 2026-09-14 15:10:24 | Nuevas: El Grande, Friedrich
 
 email:
   smtp_host: smtp.gmail.com
@@ -30,6 +30,18 @@ alerts:
 - name: Blood Rage
   keywords: blood rage
   max_price: 65
+  want:
+  - base
+  - lote
+- name: El Grande
+  keywords: el grande
+  max_price: 30
+  want:
+  - base
+  - lote
+- name: Friedrich
+  keywords: Friedrich
+  max_price: 40
   want:
   - base
   - lote
