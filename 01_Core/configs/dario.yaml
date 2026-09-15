@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-09-14 15:10:24 | Nuevas: El Grande, Friedrich
+# 2026-09-15 13:59:29 | Nuevas: El Grande
 
 email:
   smtp_host: smtp.gmail.com
@@ -33,16 +33,19 @@ alerts:
   want:
   - base
   - lote
-- name: El Grande
-  keywords: el grande
-  max_price: 30
-  want:
-  - base
-  - lote
 - name: Friedrich
   keywords: Friedrich
   max_price: 40
   want:
   - base
   - lote
+- name: El Grande
+  keywords: el, grande, el grande, juego de mesa
+  max_price: 20
+  want:
+  - base
+  - lote
+  exclude:
+  - peluche
+  - muñeco
 lote_bypass_price: true
