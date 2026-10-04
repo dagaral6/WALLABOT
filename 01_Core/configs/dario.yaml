@@ -1,5 +1,5 @@
 # Config de 'dario' actualizada automaticamente (alertas agregadas).
-# 2026-09-15 13:59:29 | Nuevas: El Grande
+# 2026-10-04 10:39:03 | Nuevas: Inis Nemed
 
 email:
   smtp_host: smtp.gmail.com
@@ -48,4 +48,9 @@ alerts:
   exclude:
   - peluche
   - muñeco
+- name: Inis Nemed
+  keywords: inis nemed
+  want:
+  - lote
+  - expansion
 lote_bypass_price: true
